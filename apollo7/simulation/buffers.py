@@ -22,6 +22,10 @@ PARTICLE_STATE_STRIDE = 32
 # Bytes per particle in color buffer: vec4<f32> RGBA = 16 bytes
 PARTICLE_COLOR_STRIDE = 16
 
+# Spatial hash grid size (128^3 cells)
+GRID_SIZE = 128
+GRID_TOTAL_CELLS = GRID_SIZE ** 3  # 2,097,152
+
 
 class ParticleBuffer:
     """Manages double-buffered GPU storage for particle simulation.
@@ -69,6 +73,33 @@ class ParticleBuffer:
             usage=wgpu.BufferUsage.UNIFORM | wgpu.BufferUsage.COPY_DST,
         )
 
+        # --- Auxiliary buffers for forces/SPH passes ---
+        aux_usage = wgpu.BufferUsage.STORAGE | wgpu.BufferUsage.COPY_DST
+
+        # Force accumulation: vec4<f32> per particle (16 bytes)
+        self._forces_buf = device.create_buffer(
+            size=max_particles * 16, usage=aux_usage
+        )
+        # SPH force accumulation: vec4<f32> per particle (16 bytes)
+        self._sph_forces_buf = device.create_buffer(
+            size=max_particles * 16, usage=aux_usage
+        )
+        # Density per particle: f32 (4 bytes)
+        self._densities_buf = device.create_buffer(
+            size=max_particles * 4, usage=aux_usage
+        )
+        # Spatial hash grid: cell_counts, cell_offsets (GRID_SIZE^3 * 4 bytes each)
+        self._cell_counts_buf = device.create_buffer(
+            size=GRID_TOTAL_CELLS * 4, usage=aux_usage
+        )
+        self._cell_offsets_buf = device.create_buffer(
+            size=GRID_TOTAL_CELLS * 4, usage=aux_usage
+        )
+        # Sorted particle indices: one u32 per particle
+        self._sorted_indices_buf = device.create_buffer(
+            size=max_particles * 4, usage=aux_usage
+        )
+
         logger.info(
             "ParticleBuffer created: max_particles=%d, state=%d bytes, colors=%d bytes",
             max_particles,
@@ -107,7 +138,93 @@ class ParticleBuffer:
         # Reset to read from buf_a
         self._current_input = "a"
 
+        # Build spatial hash from initial positions
+        self.build_spatial_hash(positions)
+
         logger.info("Uploaded %d particles to GPU", n)
+
+    def build_spatial_hash(
+        self, positions: np.ndarray, cell_size: float = 0.2
+    ) -> None:
+        """Build spatial hash grid on CPU and upload to GPU buffers.
+
+        Computes cell assignments, counts, prefix-sum offsets, and sorted
+        particle indices for neighbor lookup in forces/SPH shaders.
+
+        Only needs to run at simulation start/restart, not per-frame.
+
+        Args:
+            positions: (N, 3) float32 array of XYZ positions.
+            cell_size: Size of each grid cell (default: repulsion_radius * 2).
+        """
+        n = positions.shape[0]
+
+        # Compute cell index for each particle
+        # Grid is centered at origin with 64-unit offset
+        cell_coords = np.floor(
+            (positions[:, :3] + 64.0) / cell_size
+        ).astype(np.int32)
+
+        # Clamp to valid grid range [0, GRID_SIZE-1]
+        cell_coords = np.clip(cell_coords, 0, GRID_SIZE - 1)
+
+        # Compute flat cell hash: x + y * GRID_SIZE + z * GRID_SIZE^2
+        cell_hashes = (
+            cell_coords[:, 0]
+            + cell_coords[:, 1] * GRID_SIZE
+            + cell_coords[:, 2] * GRID_SIZE * GRID_SIZE
+        ).astype(np.uint32)
+
+        # Count particles per cell
+        cell_counts = np.zeros(GRID_TOTAL_CELLS, dtype=np.uint32)
+        for h in cell_hashes:
+            cell_counts[h] += 1
+
+        # Prefix sum for cell offsets
+        cell_offsets = np.zeros(GRID_TOTAL_CELLS, dtype=np.uint32)
+        if GRID_TOTAL_CELLS > 0:
+            cell_offsets[0] = 0
+            np.cumsum(cell_counts[:-1], out=cell_offsets[1:])
+
+        # Build sorted indices (particles sorted by cell)
+        sorted_indices = np.zeros(n, dtype=np.uint32)
+        # Track current write position per cell
+        write_pos = cell_offsets.copy()
+        for i in range(n):
+            h = cell_hashes[i]
+            sorted_indices[write_pos[h]] = i
+            write_pos[h] += 1
+
+        # Upload to GPU
+        self._device.queue.write_buffer(
+            self._cell_counts_buf, 0, cell_counts.tobytes()
+        )
+        self._device.queue.write_buffer(
+            self._cell_offsets_buf, 0, cell_offsets.tobytes()
+        )
+        self._device.queue.write_buffer(
+            self._sorted_indices_buf, 0, sorted_indices.tobytes()
+        )
+
+        logger.debug(
+            "Spatial hash built: %d particles, %d non-empty cells",
+            n,
+            int(np.count_nonzero(cell_counts)),
+        )
+
+    def clear_forces(self) -> None:
+        """Clear force accumulation buffers to zeros.
+
+        Must be called at the start of each simulation step before
+        force/SPH compute passes write to these buffers.
+        """
+        n = self._particle_count
+        if n == 0:
+            return
+
+        zeros_16 = np.zeros(n * 4, dtype=np.float32).tobytes()
+        self._device.queue.write_buffer(self._forces_buf, 0, zeros_16)
+        self._device.queue.write_buffer(self._sph_forces_buf, 0, zeros_16)
 
     def swap(self) -> None:
         """Swap input and output buffer references (pointer swap, no GPU copy)."""
@@ -159,6 +276,36 @@ class ParticleBuffer:
     def params_buffer(self):
         """Uniform buffer for SimulationParams."""
         return self._params_buf
+
+    @property
+    def forces_buffer(self):
+        """Force accumulation buffer (vec4<f32> per particle)."""
+        return self._forces_buf
+
+    @property
+    def sph_forces_buffer(self):
+        """SPH force accumulation buffer (vec4<f32> per particle)."""
+        return self._sph_forces_buf
+
+    @property
+    def densities_buffer(self):
+        """Density buffer (f32 per particle)."""
+        return self._densities_buf
+
+    @property
+    def cell_counts_buffer(self):
+        """Spatial hash cell counts buffer."""
+        return self._cell_counts_buf
+
+    @property
+    def cell_offsets_buffer(self):
+        """Spatial hash cell offsets buffer (prefix sum)."""
+        return self._cell_offsets_buf
+
+    @property
+    def sorted_indices_buffer(self):
+        """Sorted particle indices buffer (sorted by cell hash)."""
+        return self._sorted_indices_buf
 
     @property
     def particle_count(self) -> int:
