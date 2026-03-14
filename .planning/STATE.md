@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: in-progress
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-14T16:58:37Z"
+status: executing
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-03-14T17:03:07.208Z"
 last_activity: 2026-03-14 -- Plan 02-02 complete (feature viewer & undo/redo)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 11
-  completed_plans: 6
+  completed_plans: 7
   percent: 54
 ---
 
@@ -50,6 +50,7 @@ Progress: [█████-----] 54%
 - Trend: Stable (01-05 larger due to integration + checkpoint)
 
 *Updated after each plan completion*
+| Phase 02 P01 | 8min | 3 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,10 @@ Recent decisions affecting current work:
 - [02-02]: Merge ID offset per parameter (0=point_size, 1=opacity, 2=depth_exag) for selective merge
 - [02-02]: FeatureViewerPanel replaces FeatureStripPanel in layout (strip kept for backward compat)
 - [02-02]: QPainter-based histogram and swatch rendering (no matplotlib dependency)
+- [Phase 02-01]: 112-byte uniform struct with 7x vec4 layout for WGSL alignment
+- [Phase 02-01]: Chunked dispatch 256K particles/chunk for AMD TDR prevention
+- [Phase 02-01]: Spatial hash grid 128^3 with 64-unit offset centering at origin
+- [Phase 02-01]: SimulationParams.with_update() immutable update for hot-reload pattern
 
 ### Pending Todos
 
@@ -92,6 +97,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T16:58:37Z
-Stopped at: Completed 02-02-PLAN.md
-Resume file: .planning/phases/02-creative-sculpting/02-02-SUMMARY.md
+Last session: 2026-03-14T17:03:07.206Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None

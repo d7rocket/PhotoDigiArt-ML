@@ -32,16 +32,16 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **RENDER-01**: Pipeline generates 3D point clouds from extracted features (geometry, color, depth)
 - [x] **RENDER-02**: Real-time 3D viewport with orbit, zoom, pan at 30+ FPS via Vulkan/wgpu
 - [x] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
-- [ ] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
+- [x] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
 - [ ] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
 - [ ] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
 - [ ] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
 
 ### Generative Models & Simulation
 
-- [ ] **SIM-01**: Research and integrate best-in-class particle/generative models for visually compelling output
-- [ ] **SIM-02**: GPU-accelerated fluid dynamics simulation (SPH or Navier-Stokes solver via compute shaders)
-- [ ] **SIM-03**: Flow field generation from extracted features driving particle motion
+- [x] **SIM-01**: Research and integrate best-in-class particle/generative models for visually compelling output
+- [x] **SIM-02**: GPU-accelerated fluid dynamics simulation (SPH or Navier-Stokes solver via compute shaders)
+- [x] **SIM-03**: Flow field generation from extracted features driving particle motion
 - [ ] **SIM-04**: Sculptures must be visually pleasing and artistic -- aesthetic quality is a hard requirement, not a nice-to-have
 
 ### Creative Controls
@@ -121,13 +121,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RENDER-01 | Phase 1 | Complete |
 | RENDER-02 | Phase 1 | Complete |
 | RENDER-03 | Phase 1 | Complete |
-| RENDER-04 | Phase 2 | Pending |
+| RENDER-04 | Phase 2 | Complete |
 | RENDER-05 | Phase 2 | Pending |
 | RENDER-06 | Phase 2 | Pending |
 | RENDER-07 | Phase 3 | Pending |
-| SIM-01 | Phase 2 | Pending |
-| SIM-02 | Phase 2 | Pending |
-| SIM-03 | Phase 2 | Pending |
+| SIM-01 | Phase 2 | Complete |
+| SIM-02 | Phase 2 | Complete |
+| SIM-03 | Phase 2 | Complete |
 | SIM-04 | Phase 2 | Pending |
 | CTRL-01 | Phase 2 | Pending |
 | CTRL-02 | Phase 3 | Pending |
