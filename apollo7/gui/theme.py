@@ -231,6 +231,65 @@ def load_theme_qss() -> str:
         color: {text_primary};
     }}
 
+    /* === Radio Button === */
+    QRadioButton {{
+        color: {text_secondary};
+        spacing: 8px;
+        padding: 4px 2px;
+    }}
+    QRadioButton:hover {{
+        color: {text_primary};
+    }}
+    QRadioButton:checked {{
+        color: {text_primary};
+        font-weight: 600;
+    }}
+    QRadioButton::indicator {{
+        width: 16px;
+        height: 16px;
+        border: 2px solid {border};
+        border-radius: 10px;
+        background-color: {bg_input};
+    }}
+    QRadioButton::indicator:hover {{
+        border-color: {accent_hover};
+    }}
+    QRadioButton::indicator:checked {{
+        border-color: {accent};
+        background-color: {accent};
+    }}
+    QRadioButton::indicator:checked:hover {{
+        border-color: {accent_hover};
+        background-color: {accent_hover};
+    }}
+
+    /* === Checkbox === */
+    QCheckBox {{
+        color: {text_secondary};
+        spacing: 8px;
+        padding: 4px 2px;
+    }}
+    QCheckBox:hover {{
+        color: {text_primary};
+    }}
+    QCheckBox:checked {{
+        color: {text_primary};
+    }}
+    QCheckBox::indicator {{
+        width: 16px;
+        height: 16px;
+        border: 2px solid {border};
+        border-radius: 3px;
+        background-color: {bg_input};
+    }}
+    QCheckBox::indicator:hover {{
+        border-color: {accent_hover};
+    }}
+    QCheckBox::indicator:checked {{
+        border-color: {accent};
+        background-color: {accent};
+    }}
+
     /* === Tooltip === */
     QToolTip {{
         background-color: {bg_widget};
