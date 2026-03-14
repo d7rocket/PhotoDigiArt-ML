@@ -1,7 +1,7 @@
 # Requirements: Apollo 7
 
 **Defined:** 2026-03-14
-**Core Value:** Photos become data, data becomes art — the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
+**Core Value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
 
 ## v1 Requirements
 
@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
 - [ ] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
 - [ ] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
-- [ ] **RENDER-06**: Render-then-interact pattern — heavy GPU compute produces output, then viewport is lightweight for smooth exploration
+- [ ] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
 - [ ] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
 
 ### Generative Models & Simulation
@@ -42,29 +42,29 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **SIM-01**: Research and integrate best-in-class particle/generative models for visually compelling output
 - [ ] **SIM-02**: GPU-accelerated fluid dynamics simulation (SPH or Navier-Stokes solver via compute shaders)
 - [ ] **SIM-03**: Flow field generation from extracted features driving particle motion
-- [ ] **SIM-04**: Sculptures must be visually pleasing and artistic — aesthetic quality is a hard requirement, not a nice-to-have
+- [ ] **SIM-04**: Sculptures must be visually pleasing and artistic -- aesthetic quality is a hard requirement, not a nice-to-have
 
 ### Creative Controls
 
 - [ ] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
-- [ ] **CTRL-02**: Feature-to-visual mapping editor — user can route extracted features to visual parameters
+- [ ] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
 - [ ] **CTRL-03**: Undo/redo on all parameter changes
 - [ ] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
 - [ ] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
-- [ ] **CTRL-06**: Preset library — save, load, and organize named parameter presets
-- [ ] **CTRL-07**: Preset interpolation — smoothly blend between saved presets
+- [ ] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
+- [ ] **CTRL-07**: Preset interpolation -- smoothly blend between saved presets
 
 ### Discovery & AI
 
-- [ ] **DISC-01**: Local discovery mode — randomized but constrained parameter exploration with "more/less like this" feedback loop (no API required)
-- [ ] **DISC-02**: Optional Claude API integration for semantic photo annotation (describe what's in photos — mood, objects, narrative)
+- [ ] **DISC-01**: Local discovery mode -- randomized but constrained parameter exploration with "more/less like this" feedback loop (no API required)
+- [ ] **DISC-02**: Optional Claude API integration for semantic photo annotation (describe what's in photos -- mood, objects, narrative)
 - [ ] **DISC-03**: Optional Claude API creative direction (suggest how to map extracted features to visual forms)
-- [ ] **DISC-04**: All core functionality works fully offline — Claude API is additive enrichment only
+- [ ] **DISC-04**: All core functionality works fully offline -- Claude API is additive enrichment only
 
 ### Desktop Application
 
-- [ ] **APP-01**: Desktop GUI built with PySide6 — professional layout with docking panels
-- [ ] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) — no CUDA dependencies
+- [ ] **APP-01**: Desktop GUI built with PySide6 -- professional layout with docking panels
+- [ ] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) -- no CUDA dependencies
 - [ ] **APP-03**: Full GPU/CPU/RAM utilization for generation (hours-long runs acceptable)
 - [ ] **APP-04**: UI remains responsive during long generation runs (background compute, foreground interaction)
 
@@ -94,9 +94,9 @@ Deferred to future release. Tracked but not in current roadmap.
 |---------|--------|
 | Text-to-image / prompt-based generation | Apollo 7 transforms DATA, not prompts. This is Stable Diffusion territory |
 | Node-based visual programming | TouchDesigner does this. Apollo 7's value is the integrated GUI workflow |
-| Plugin/extension system | Premature abstraction — hardcode features in v1, consider plugins v2+ |
+| Plugin/extension system | Premature abstraction -- hardcode features in v1, consider plugins v2+ |
 | Cloud rendering | Contradicts local-first philosophy. Desktop GPU is more than capable |
-| Mesh generation / 3D printing export | Point cloud → manifold mesh is a deep rabbit hole. Stay in particle/point territory |
+| Mesh generation / 3D printing export | Point cloud to manifold mesh is a deep rabbit hole. Stay in particle/point territory |
 | Multi-user collaboration | Desktop creative tool for solo artists |
 | Social sharing / gallery | Export images; users choose their own sharing platform |
 | Mobile app | Desktop only |
@@ -107,13 +107,49 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| INGEST-01 | Phase 1 | Pending |
+| INGEST-02 | Phase 1 | Pending |
+| INGEST-03 | Phase 1 | Pending |
+| EXTRACT-01 | Phase 1 | Pending |
+| EXTRACT-02 | Phase 1 | Pending |
+| EXTRACT-03 | Phase 1 | Pending |
+| EXTRACT-04 | Phase 3 | Pending |
+| EXTRACT-05 | Phase 2 | Pending |
+| COLL-01 | Phase 3 | Pending |
+| COLL-02 | Phase 3 | Pending |
+| COLL-03 | Phase 3 | Pending |
+| RENDER-01 | Phase 1 | Pending |
+| RENDER-02 | Phase 1 | Pending |
+| RENDER-03 | Phase 1 | Pending |
+| RENDER-04 | Phase 2 | Pending |
+| RENDER-05 | Phase 2 | Pending |
+| RENDER-06 | Phase 2 | Pending |
+| RENDER-07 | Phase 3 | Pending |
+| SIM-01 | Phase 2 | Pending |
+| SIM-02 | Phase 2 | Pending |
+| SIM-03 | Phase 2 | Pending |
+| SIM-04 | Phase 2 | Pending |
+| CTRL-01 | Phase 2 | Pending |
+| CTRL-02 | Phase 3 | Pending |
+| CTRL-03 | Phase 2 | Pending |
+| CTRL-04 | Phase 2 | Pending |
+| CTRL-05 | Phase 2 | Pending |
+| CTRL-06 | Phase 2 | Pending |
+| CTRL-07 | Phase 3 | Pending |
+| DISC-01 | Phase 3 | Pending |
+| DISC-02 | Phase 3 | Pending |
+| DISC-03 | Phase 3 | Pending |
+| DISC-04 | Phase 3 | Pending |
+| APP-01 | Phase 1 | Pending |
+| APP-02 | Phase 1 | Pending |
+| APP-03 | Phase 1 | Pending |
+| APP-04 | Phase 1 | Pending |
 
 **Coverage:**
-- v1 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30 ⚠️
+- v1 requirements: 37 total
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after initial definition*
+*Last updated: 2026-03-14 after roadmap creation*
