@@ -65,8 +65,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **APP-01**: Desktop GUI built with PySide6 -- professional layout with docking panels
 - [x] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) -- no CUDA dependencies
-- [ ] **APP-03**: Full GPU/CPU/RAM utilization for generation (hours-long runs acceptable)
-- [ ] **APP-04**: UI remains responsive during long generation runs (background compute, foreground interaction)
+- [x] **APP-03**: Full GPU/CPU/RAM utilization for generation (hours-long runs acceptable)
+- [x] **APP-04**: UI remains responsive during long generation runs (background compute, foreground interaction)
 
 ## v2 Requirements
 
@@ -142,8 +142,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-04 | Phase 3 | Pending |
 | APP-01 | Phase 1 | Complete |
 | APP-02 | Phase 1 | Complete |
-| APP-03 | Phase 1 | Pending |
-| APP-04 | Phase 1 | Pending |
+| APP-03 | Phase 1 | Complete |
+| APP-04 | Phase 1 | Complete |
 
 **Coverage:**
 - v1 requirements: 37 total

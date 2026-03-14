@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-04-PLAN.md
-last_updated: "2026-03-14T15:18:00.000Z"
-last_activity: 2026-03-14 -- Plan 01-04 complete (depth extraction + point cloud generation)
+stopped_at: Completed 01-05-PLAN.md (Phase 1 complete)
+last_updated: "2026-03-14T15:50:41.828Z"
+last_activity: 2026-03-14 -- Plan 01-05 complete (end-to-end pipeline integration, Phase 1 done)
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State
@@ -25,29 +25,29 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 
 ## Current Position
 
-Phase: 1 of 3 (Pipeline Foundation)
-Plan: 4 of 5 in current phase (complete)
-Status: Executing phase 1
-Last activity: 2026-03-14 -- Plan 01-04 complete (depth extraction + point cloud generation)
+Phase: 1 of 3 (Pipeline Foundation) -- COMPLETE
+Plan: 5 of 5 in current phase (complete)
+Status: Phase 1 complete
+Last activity: 2026-03-14 -- Plan 01-05 complete (end-to-end pipeline integration)
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: ~4 min
-- Total execution time: ~0.25 hours
+- Total plans completed: 5
+- Average duration: ~5 min
+- Total execution time: ~0.4 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 - Pipeline Foundation | 4/5 | ~15 min | ~4 min |
+| 1 - Pipeline Foundation | 5/5 | ~27 min | ~5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (~5 min), 01-02 (~4 min), 01-03 (~3 min), 01-04 (~3 min)
-- Trend: Accelerating
+- Last 5 plans: 01-01 (~5 min), 01-02 (~4 min), 01-03 (~3 min), 01-04 (~3 min), 01-05 (~12 min)
+- Trend: Stable (01-05 larger due to integration + checkpoint)
 
 *Updated after each plan completion*
 
@@ -73,6 +73,10 @@ Recent decisions affecting current work:
 - [01-04]: DirectML fallback with warning (don't crash if GPU unavailable)
 - [01-04]: Blue-to-yellow depth colormap via pure numpy (no matplotlib)
 - [01-04]: Grid-based LOD: divide space into cells, keep closest-to-center point
+- [01-05]: ExtractionWorker generates arrays in background, scene modification in main thread (pygfx thread safety)
+- [01-05]: Per-photo cloud tracking via dict keyed by photo path for selective removal/regeneration
+- [01-05]: Layout/multi-photo mode changes regenerate from stored results (no re-extraction)
+- [01-05]: UI polish deferred to later iteration per user feedback
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T15:18:00.000Z
-Stopped at: Completed 01-04-PLAN.md
+Last session: 2026-03-14T15:50:41Z
+Stopped at: Completed 01-05-PLAN.md (Phase 1 Pipeline Foundation complete)
 Resume file: None
