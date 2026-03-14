@@ -28,11 +28,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User sees a 3D point cloud generated from extracted features, rendered in a real-time viewport with orbit, zoom, and pan at 30+ FPS
   4. Point cloud rendering supports configurable point size, color mapping, opacity, and additive blending
   5. The application runs on Windows 11 with AMD RX 9060 XT (no CUDA), UI stays responsive during long extraction runs
-**Plans**: TBD
+**Plans:** 5 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Project setup, GUI skeleton, and embedded pygfx 3D viewport with test points
+- [ ] 01-02-PLAN.md — Photo ingestion (single + batch), library panel, and progress feedback
+- [ ] 01-03-PLAN.md — Color and edge extraction with pluggable interface and feature strip
+- [ ] 01-04-PLAN.md — Depth extraction via ONNX/DirectML and point cloud generation
+- [ ] 01-05-PLAN.md — End-to-end integration: progressive build, controls, multi-photo support
 
 ### Phase 2: Creative Sculpting
 **Goal**: User can sculpt, animate, and export visually stunning data sculptures with full parameter control
@@ -75,6 +78,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Pipeline Foundation | 0/2 | Not started | - |
+| 1. Pipeline Foundation | 0/5 | Not started | - |
 | 2. Creative Sculpting | 0/3 | Not started | - |
 | 3. Discovery and Intelligence | 0/2 | Not started | - |
