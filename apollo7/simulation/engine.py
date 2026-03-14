@@ -71,10 +71,6 @@ class SimulationEngine:
         # Compute pipelines (created during initialize)
         self._integrate_pipeline = None
         self._integrate_bind_group = None
-        self._forces_buf = None
-
-        # Force accumulation buffer
-        self._flow_output_buf = None
 
         logger.info("SimulationEngine created")
 
@@ -105,25 +101,14 @@ class SimulationEngine:
         self._particle_buffer = ParticleBuffer(self._device, max_particles=n)
         self._particle_buffer.upload(positions, colors)
 
-        # Create force accumulation buffer
-        forces_size = n * 16  # vec4<f32> per particle
-        self._forces_buf = self._device.create_buffer(
-            size=forces_size,
-            usage=(
-                wgpu.BufferUsage.STORAGE
-                | wgpu.BufferUsage.COPY_DST
-                | wgpu.BufferUsage.COPY_SRC
-            ),
-        )
-
-        # Upload feature textures if provided
+        # Upload feature textures if provided (stored for future multi-pass use)
         if feature_textures:
             self._upload_feature_textures(feature_textures)
             self._has_feature_textures = True
         else:
             self._has_feature_textures = False
 
-        # Build compute pipelines
+        # Build compute pipeline (single-pass: forces computed inline in shader)
         self._build_integrate_pipeline()
 
         # Upload initial params
@@ -167,15 +152,15 @@ class SimulationEngine:
     def _build_integrate_pipeline(self) -> None:
         """Build the integration compute pipeline.
 
-        This is the core pipeline that reads forces and updates particle
-        positions/velocities using symplectic Euler integration.
+        Single-pass pipeline: forces (flow field, gravity, wind) are computed
+        inline in the shader. No separate force accumulation buffer needed.
         """
         import wgpu
 
         shader_source = load_shader("integrate")
         shader_module = self._device.create_shader_module(code=shader_source)
 
-        # Bind group layout: particles_in, particles_out, params, forces
+        # Bind group layout: particles_in, particles_out, params
         bgl = self._device.create_bind_group_layout(
             entries=[
                 {
@@ -194,13 +179,6 @@ class SimulationEngine:
                     "binding": 2,
                     "visibility": wgpu.ShaderStage.COMPUTE,
                     "buffer": {"type": wgpu.BufferBindingType.uniform},
-                },
-                {
-                    "binding": 3,
-                    "visibility": wgpu.ShaderStage.COMPUTE,
-                    "buffer": {
-                        "type": wgpu.BufferBindingType.read_only_storage
-                    },
                 },
             ],
         )
@@ -247,14 +225,6 @@ class SimulationEngine:
                         "size": pb.params_buffer.size,
                     },
                 },
-                {
-                    "binding": 3,
-                    "resource": {
-                        "buffer": self._forces_buf,
-                        "offset": 0,
-                        "size": self._forces_buf.size,
-                    },
-                },
             ],
         )
 
@@ -281,10 +251,7 @@ class SimulationEngine:
         )
         self._particle_buffer.update_params(updated_params)
 
-        # Zero out force buffer
         n = self._particle_buffer.particle_count
-        zeros = np.zeros(n * 4, dtype=np.float32).tobytes()
-        self._device.queue.write_buffer(self._forces_buf, 0, zeros)
 
         # Rebuild bind group for current buffer orientation
         self._rebuild_integrate_bind_group()

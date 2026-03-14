@@ -139,9 +139,9 @@ class SimulationPanel(QtWidgets.QWidget):
 
         layout.addWidget(ctrl_group)
 
-        # -- Flow Field section (collapsible) --
-        flow_group = self._make_collapsible_group("Flow Field")
-        flow_layout = flow_group.layout()
+        # -- Flow Field section --
+        flow_group = QtWidgets.QGroupBox("Flow Field")
+        flow_layout = QtWidgets.QVBoxLayout(flow_group)
         for spec in _FLOW_SLIDERS:
             self._add_slider(flow_layout, spec)
         self.btn_reset_flow = QtWidgets.QPushButton("Reset Flow")
@@ -149,9 +149,9 @@ class SimulationPanel(QtWidgets.QWidget):
         flow_layout.addWidget(self.btn_reset_flow)
         layout.addWidget(flow_group)
 
-        # -- Forces section (collapsible) --
-        forces_group = self._make_collapsible_group("Forces")
-        forces_layout = forces_group.layout()
+        # -- Forces section --
+        forces_group = QtWidgets.QGroupBox("Forces")
+        forces_layout = QtWidgets.QVBoxLayout(forces_group)
         for spec in _FORCES_SLIDERS:
             self._add_slider(forces_layout, spec)
         self.btn_reset_forces = QtWidgets.QPushButton("Reset Forces")
@@ -159,9 +159,9 @@ class SimulationPanel(QtWidgets.QWidget):
         forces_layout.addWidget(self.btn_reset_forces)
         layout.addWidget(forces_group)
 
-        # -- Fluid (SPH) section (collapsible) --
-        fluid_group = self._make_collapsible_group("Fluid (SPH)")
-        fluid_layout = fluid_group.layout()
+        # -- Fluid (SPH) section --
+        fluid_group = QtWidgets.QGroupBox("Fluid (SPH)")
+        fluid_layout = QtWidgets.QVBoxLayout(fluid_group)
         for spec in _FLUID_SLIDERS:
             self._add_slider(fluid_layout, spec)
         self.btn_reset_fluid = QtWidgets.QPushButton("Reset Fluid")
@@ -181,23 +181,6 @@ class SimulationPanel(QtWidgets.QWidget):
         outer_layout = QtWidgets.QVBoxLayout(self)
         outer_layout.setContentsMargins(0, 0, 0, 0)
         outer_layout.addWidget(scroll)
-
-    def _make_collapsible_group(self, title: str) -> QtWidgets.QGroupBox:
-        """Create a collapsible QGroupBox."""
-        group = QtWidgets.QGroupBox(title)
-        group.setCheckable(True)
-        group.setChecked(True)
-        group.toggled.connect(lambda checked, g=group: self._toggle_group(g, checked))
-        vbox = QtWidgets.QVBoxLayout(group)
-        return group
-
-    def _toggle_group(self, group: QtWidgets.QGroupBox, checked: bool):
-        """Show/hide group contents when toggled."""
-        for i in range(group.layout().count()):
-            item = group.layout().itemAt(i)
-            widget = item.widget()
-            if widget:
-                widget.setVisible(checked)
 
     def _add_slider(self, layout, spec: tuple):
         """Add a labeled slider for a parameter.

@@ -29,8 +29,8 @@ _SWATCH_SIZE = 28
 _STAT_STYLE = "color: #888; font-size: 11px;"
 
 
-class _CollapsibleSection(QtWidgets.QWidget):
-    """A section with a clickable header that toggles content visibility."""
+class _Section(QtWidgets.QWidget):
+    """A section with a styled header and content area."""
 
     def __init__(self, title: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -38,30 +38,21 @@ class _CollapsibleSection(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Header button
-        self._header = QtWidgets.QPushButton(f"  {title}")
-        self._header.setCheckable(True)
-        self._header.setChecked(True)
+        # Header label
+        self._header = QtWidgets.QLabel(f"  {title}")
         self._header.setStyleSheet(f"""
-            QPushButton {{
+            QLabel {{
                 background: {_BG_SECTION};
                 color: {_ACCENT};
                 border: 1px solid {_BORDER};
                 border-radius: 4px;
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
                 padding: 6px 8px;
-                text-align: left;
                 font-weight: 600;
                 font-size: 12px;
             }}
-            QPushButton:hover {{
-                background: #2a2a2a;
-            }}
-            QPushButton:checked {{
-                border-bottom-left-radius: 0;
-                border-bottom-right-radius: 0;
-            }}
         """)
-        self._header.clicked.connect(self._toggle)
         layout.addWidget(self._header)
 
         # Content container
@@ -84,17 +75,6 @@ class _CollapsibleSection(QtWidgets.QWidget):
     def content_layout(self) -> QtWidgets.QVBoxLayout:
         """Layout for adding content widgets."""
         return self._content_layout
-
-    def _toggle(self, checked: bool) -> None:
-        self._content.setVisible(checked)
-        arrow = "v" if checked else ">"
-        text = self._header.text().strip()
-        # Remove existing arrow prefix
-        for prefix in ("v ", "> "):
-            if text.startswith(prefix):
-                text = text[len(prefix):]
-                break
-        self._header.setText(f"  {arrow} {text}")
 
 
 class _ColorSwatchWidget(QtWidgets.QWidget):
@@ -268,7 +248,7 @@ class FeatureViewerPanel(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def _build_color_section(self, result: "ExtractionResult | None") -> None:
-        section = _CollapsibleSection("Color Palette")
+        section = _Section("Color Palette")
         layout = section.content_layout
 
         if result is None:
@@ -312,7 +292,7 @@ class FeatureViewerPanel(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def _build_edge_section(self, result: "ExtractionResult | None") -> None:
-        section = _CollapsibleSection("Edge Map")
+        section = _Section("Edge Map")
         layout = section.content_layout
 
         if result is None:
@@ -364,7 +344,7 @@ class FeatureViewerPanel(QtWidgets.QWidget):
     # ------------------------------------------------------------------
 
     def _build_depth_section(self, result: "ExtractionResult | None") -> None:
-        section = _CollapsibleSection("Depth Map")
+        section = _Section("Depth Map")
         layout = section.content_layout
 
         if result is None:
