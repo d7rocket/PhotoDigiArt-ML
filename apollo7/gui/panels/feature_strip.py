@@ -1,7 +1,7 @@
 """Bottom strip showing extracted feature thumbnails as horizontal cards.
 
-Displays color palette swatches, edge map thumbnails, and (later) depth map
-previews in a collapsible, horizontally scrollable strip.
+Displays color palette swatches, edge map thumbnails, and depth map
+heatmap previews in a collapsible, horizontally scrollable strip.
 """
 
 from __future__ import annotations
@@ -120,15 +120,54 @@ class EdgeMapCard(_FeatureCard):
 
 
 class DepthMapCard(_FeatureCard):
-    """Placeholder card for depth map (populated in Plan 04)."""
+    """Card showing depth map as a blue-to-yellow heatmap thumbnail."""
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self,
+        result: "ExtractionResult | None" = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__("Depth Map", parent)
-        placeholder = QtWidgets.QLabel("Available after depth extraction")
-        placeholder.setStyleSheet("color: #555; font-size: 10px;")
-        placeholder.setAlignment(QtCore.Qt.AlignCenter)
-        placeholder.setWordWrap(True)
-        self._layout.addWidget(placeholder)
+
+        thumb_label = QtWidgets.QLabel()
+        thumb_label.setAlignment(QtCore.Qt.AlignCenter)
+
+        depth_map = result.arrays.get("depth_map") if result else None
+
+        if depth_map is not None:
+            h, w = depth_map.shape[:2]
+            aspect = w / max(h, 1)
+            thumb_w = int(_THUMB_H * aspect)
+
+            # Apply blue-to-yellow colormap via numpy
+            # depth 0.0 -> dark blue (0, 0, 128), depth 1.0 -> bright yellow (255, 255, 0)
+            d = np.clip(depth_map, 0.0, 1.0)
+            r = (d * 255).astype(np.uint8)
+            g = (d * 255).astype(np.uint8)
+            b = (128 * (1.0 - d)).astype(np.uint8)
+            rgb = np.stack([r, g, b], axis=-1)
+            rgb_contiguous = np.ascontiguousarray(rgb)
+
+            qimg = QtGui.QImage(
+                rgb_contiguous.data,
+                w,
+                h,
+                w * 3,
+                QtGui.QImage.Format_RGB888,
+            )
+            pixmap = QtGui.QPixmap.fromImage(qimg).scaled(
+                thumb_w,
+                _THUMB_H,
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            )
+            thumb_label.setPixmap(pixmap)
+        else:
+            thumb_label.setText("Available after depth extraction")
+            thumb_label.setStyleSheet("color: #555; font-size: 10px;")
+            thumb_label.setWordWrap(True)
+
+        self._layout.addWidget(thumb_label)
         self._layout.addStretch()
 
 
@@ -228,8 +267,9 @@ class FeatureStripPanel(QtWidgets.QWidget):
             card = EdgeMapCard(results["edge"])
             self._card_layout.insertWidget(self._card_layout.count() - 1, card)
 
-        # Depth placeholder always shown
-        depth_card = DepthMapCard()
+        # Depth card: real heatmap if depth result available, placeholder otherwise
+        depth_result = results.get("depth")
+        depth_card = DepthMapCard(result=depth_result)
         self._card_layout.insertWidget(self._card_layout.count() - 1, depth_card)
 
     def clear(self) -> None:
