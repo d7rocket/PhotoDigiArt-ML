@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md
-last_updated: "2026-03-14T15:12:47.496Z"
-last_activity: 2026-03-14 -- Plan 01-03 complete (feature extraction pipeline)
+stopped_at: Completed 01-04-PLAN.md
+last_updated: "2026-03-14T15:18:00.000Z"
+last_activity: 2026-03-14 -- Plan 01-04 complete (depth extraction + point cloud generation)
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State
@@ -26,27 +26,27 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 1 of 3 (Pipeline Foundation)
-Plan: 3 of 5 in current phase (complete)
+Plan: 4 of 5 in current phase (complete)
 Status: Executing phase 1
-Last activity: 2026-03-14 -- Plan 01-03 complete (feature extraction pipeline)
+Last activity: 2026-03-14 -- Plan 01-04 complete (depth extraction + point cloud generation)
 
-Progress: [██████░░░░] 60%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
+- Total plans completed: 4
 - Average duration: ~4 min
-- Total execution time: ~0.2 hours
+- Total execution time: ~0.25 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 1 - Pipeline Foundation | 3/5 | ~12 min | ~4 min |
+| 1 - Pipeline Foundation | 4/5 | ~15 min | ~4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (~5 min), 01-02 (~4 min), 01-03 (~3 min)
+- Last 5 plans: 01-01 (~5 min), 01-02 (~4 min), 01-03 (~3 min), 01-04 (~3 min)
 - Trend: Accelerating
 
 *Updated after each plan completion*
@@ -69,6 +69,10 @@ Recent decisions affecting current work:
 - [01-02]: PIL-to-QPixmap via in-memory PNG buffer in main thread (Qt pixmap creation requirement)
 - [01-02]: Header-based format detection via Pillow, not file extension
 - [01-02]: WorkerSignals QObject pattern for QRunnable signal emission
+- [01-04]: Lazy ONNX session loading (first extract() call, not import time)
+- [01-04]: DirectML fallback with warning (don't crash if GPU unavailable)
+- [01-04]: Blue-to-yellow depth colormap via pure numpy (no matplotlib)
+- [01-04]: Grid-based LOD: divide space into cells, keep closest-to-center point
 
 ### Pending Todos
 
@@ -81,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T15:12:47.494Z
-Stopped at: Completed 01-02-PLAN.md
+Last session: 2026-03-14T15:18:00.000Z
+Stopped at: Completed 01-04-PLAN.md
 Resume file: None

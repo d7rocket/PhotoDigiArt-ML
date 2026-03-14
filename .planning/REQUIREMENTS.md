@@ -17,7 +17,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **EXTRACT-01**: Pipeline extracts dominant colors, gradients, and color distributions from each photo
 - [x] **EXTRACT-02**: Pipeline extracts edges, contours, and geometric structure from each photo
-- [ ] **EXTRACT-03**: Pipeline generates monocular depth maps via Depth Anything V2 (ONNX/DirectML on AMD GPU)
+- [x] **EXTRACT-03**: Pipeline generates monocular depth maps via Depth Anything V2 (ONNX/DirectML on AMD GPU)
 - [ ] **EXTRACT-04**: Pipeline extracts semantic features (objects, scenes, mood) via local CLIP/BLIP models
 - [ ] **EXTRACT-05**: User can view extracted features per photo (color palette, edge map, depth map, semantic tags)
 
@@ -29,7 +29,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### 3D Rendering & Visualization
 
-- [ ] **RENDER-01**: Pipeline generates 3D point clouds from extracted features (geometry, color, depth)
+- [x] **RENDER-01**: Pipeline generates 3D point clouds from extracted features (geometry, color, depth)
 - [x] **RENDER-02**: Real-time 3D viewport with orbit, zoom, pan at 30+ FPS via Vulkan/wgpu
 - [x] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
 - [ ] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
@@ -112,13 +112,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INGEST-03 | Phase 1 | Complete |
 | EXTRACT-01 | Phase 1 | Complete |
 | EXTRACT-02 | Phase 1 | Complete |
-| EXTRACT-03 | Phase 1 | Pending |
+| EXTRACT-03 | Phase 1 | Complete |
 | EXTRACT-04 | Phase 3 | Pending |
 | EXTRACT-05 | Phase 2 | Pending |
 | COLL-01 | Phase 3 | Pending |
 | COLL-02 | Phase 3 | Pending |
 | COLL-03 | Phase 3 | Pending |
-| RENDER-01 | Phase 1 | Pending |
+| RENDER-01 | Phase 1 | Complete |
 | RENDER-02 | Phase 1 | Complete |
 | RENDER-03 | Phase 1 | Complete |
 | RENDER-04 | Phase 2 | Pending |
