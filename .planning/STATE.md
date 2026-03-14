@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-03-14T17:03:07.208Z"
-last_activity: 2026-03-14 -- Plan 02-02 complete (feature viewer & undo/redo)
+stopped_at: Completed 02-04-PLAN.md
+last_updated: "2026-03-14T17:12:13.688Z"
+last_activity: 2026-03-14 -- Plan 02-04 complete (post-processing effects)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 11
-  completed_plans: 7
-  percent: 54
+  completed_plans: 9
+  percent: 73
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 2 of 3 (Creative Sculpting)
-Plan: 2 of 6 in current phase (02-02 complete)
+Plan: 4 of 6 in current phase (02-04 complete)
 Status: In progress
-Last activity: 2026-03-14 -- Plan 02-02 complete (feature viewer & undo/redo)
+Last activity: 2026-03-14 -- Plan 02-04 complete (post-processing effects)
 
-Progress: [█████-----] 54%
+Progress: [███████░░░] 73%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [█████-----] 54%
 
 *Updated after each plan completion*
 | Phase 02 P01 | 8min | 3 tasks | 14 files |
+| Phase 02 P04 | 6min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,10 @@ Recent decisions affecting current work:
 - [Phase 02-01]: Chunked dispatch 256K particles/chunk for AMD TDR prevention
 - [Phase 02-01]: Spatial hash grid 128^3 with 64-unit offset centering at origin
 - [Phase 02-01]: SimulationParams.with_update() immutable update for hot-reload pattern
+- [Phase 02]: Bloom uses pygfx PhysicalBasedBloomPass (strength 0.04 default)
+- [Phase 02]: DoF/SSAO as param controllers (pygfx EffectPass API not public for custom shaders)
+- [Phase 02]: Trails via ghost point history with alpha decay (not framebuffer accumulation)
+- [Phase 02]: PostFX undo merge_id offsets 100+ to avoid sim param collision
 
 ### Pending Todos
 
@@ -97,6 +102,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T17:03:07.206Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-03-14T17:11:51.432Z
+Stopped at: Completed 02-04-PLAN.md
 Resume file: None
