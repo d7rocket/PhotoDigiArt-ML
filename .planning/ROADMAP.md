@@ -32,10 +32,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 Plans:
 - [x] 01-01-PLAN.md — Project setup, GUI skeleton, and embedded pygfx 3D viewport with test points
-- [ ] 01-02-PLAN.md — Photo ingestion (single + batch), library panel, and progress feedback
-- [ ] 01-03-PLAN.md — Color and edge extraction with pluggable interface and feature strip
-- [ ] 01-04-PLAN.md — Depth extraction via ONNX/DirectML and point cloud generation
-- [ ] 01-05-PLAN.md — End-to-end integration: progressive build, controls, multi-photo support
+- [x] 01-02-PLAN.md — Photo ingestion (single + batch), library panel, and progress feedback
+- [x] 01-03-PLAN.md — Color and edge extraction with pluggable interface and feature strip
+- [x] 01-04-PLAN.md — Depth extraction via ONNX/DirectML and point cloud generation
+- [x] 01-05-PLAN.md — End-to-end integration: progressive build, controls, multi-photo support
 
 ### Phase 2: Creative Sculpting
 **Goal**: User can sculpt, animate, and export visually stunning data sculptures with full parameter control
@@ -47,12 +47,15 @@ Plans:
   3. User can tune every visual parameter via sliders and controls that update the viewport in real-time, with undo/redo on all changes
   4. User can save/load full project state and export high-resolution still images with transparent background option
   5. Presets can be saved, loaded, and organized -- heavy compute runs in background while viewport remains smooth for exploration
-**Plans**: TBD
+**Plans:** 6 plans
 
 Plans:
-- [ ] 02-01: TBD
-- [ ] 02-02: TBD
-- [ ] 02-03: TBD
+- [ ] 02-01-PLAN.md — GPU particle simulation engine with WGSL compute shaders (all 4 force types, SPH, flow fields)
+- [ ] 02-02-PLAN.md — Feature viewer panel and undo/redo system with slider debouncing
+- [ ] 02-03-PLAN.md — Simulation UI controls, FPS counter, simulate button, viewport wiring
+- [ ] 02-04-PLAN.md — Post-processing effects (bloom, DoF, SSAO, alpha trails)
+- [ ] 02-05-PLAN.md — Save/load projects, high-res PNG export, preset library
+- [ ] 02-06-PLAN.md — End-to-end creative sculpting verification checkpoint
 
 ### Phase 3: Discovery and Intelligence
 **Goal**: The system understands photo content semantically, reveals collection-level patterns, and proposes creative directions -- turning Apollo 7 from a tool into a creative collaborator
@@ -79,5 +82,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 5/5 | Complete    | 2026-03-14 |
-| 2. Creative Sculpting | 0/3 | Not started | - |
+| 2. Creative Sculpting | 0/6 | Not started | - |
 | 3. Discovery and Intelligence | 0/2 | Not started | - |
