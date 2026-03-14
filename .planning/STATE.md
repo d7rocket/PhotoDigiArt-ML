@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: completed
-stopped_at: Phase 2 context gathered
-last_updated: "2026-03-14T16:13:07.672Z"
-last_activity: 2026-03-14 -- Plan 01-05 complete (end-to-end pipeline integration)
+status: in-progress
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-03-14T16:58:37Z"
+last_activity: 2026-03-14 -- Plan 02-02 complete (feature viewer & undo/redo)
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
-  percent: 100
+  total_plans: 11
+  completed_plans: 6
+  percent: 54
 ---
 
 # Project State
@@ -21,16 +21,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-14)
 
 **Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
-**Current focus:** Phase 1: Pipeline Foundation
+**Current focus:** Phase 2: Creative Sculpting
 
 ## Current Position
 
-Phase: 1 of 3 (Pipeline Foundation) -- COMPLETE
-Plan: 5 of 5 in current phase (complete)
-Status: Phase 1 complete
-Last activity: 2026-03-14 -- Plan 01-05 complete (end-to-end pipeline integration)
+Phase: 2 of 3 (Creative Sculpting)
+Plan: 2 of 6 in current phase (02-02 complete)
+Status: In progress
+Last activity: 2026-03-14 -- Plan 02-02 complete (feature viewer & undo/redo)
 
-Progress: [██████████] 100%
+Progress: [█████-----] 54%
 
 ## Performance Metrics
 
@@ -77,6 +77,9 @@ Recent decisions affecting current work:
 - [01-05]: Per-photo cloud tracking via dict keyed by photo path for selective removal/regeneration
 - [01-05]: Layout/multi-photo mode changes regenerate from stored results (no re-extraction)
 - [01-05]: UI polish deferred to later iteration per user feedback
+- [02-02]: Merge ID offset per parameter (0=point_size, 1=opacity, 2=depth_exag) for selective merge
+- [02-02]: FeatureViewerPanel replaces FeatureStripPanel in layout (strip kept for backward compat)
+- [02-02]: QPainter-based histogram and swatch rendering (no matplotlib dependency)
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T16:13:07.670Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-creative-sculpting/02-CONTEXT.md
+Last session: 2026-03-14T16:58:37Z
+Stopped at: Completed 02-02-PLAN.md
+Resume file: .planning/phases/02-creative-sculpting/02-02-SUMMARY.md

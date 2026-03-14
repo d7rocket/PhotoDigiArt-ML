@@ -19,7 +19,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **EXTRACT-02**: Pipeline extracts edges, contours, and geometric structure from each photo
 - [x] **EXTRACT-03**: Pipeline generates monocular depth maps via Depth Anything V2 (ONNX/DirectML on AMD GPU)
 - [ ] **EXTRACT-04**: Pipeline extracts semantic features (objects, scenes, mood) via local CLIP/BLIP models
-- [ ] **EXTRACT-05**: User can view extracted features per photo (color palette, edge map, depth map, semantic tags)
+- [x] **EXTRACT-05**: User can view extracted features per photo (color palette, edge map, depth map, semantic tags)
 
 ### Collection Analysis
 
@@ -48,7 +48,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
 - [ ] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
-- [ ] **CTRL-03**: Undo/redo on all parameter changes
+- [x] **CTRL-03**: Undo/redo on all parameter changes
 - [ ] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
 - [ ] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
 - [ ] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
@@ -114,7 +114,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTRACT-02 | Phase 1 | Complete |
 | EXTRACT-03 | Phase 1 | Complete |
 | EXTRACT-04 | Phase 3 | Pending |
-| EXTRACT-05 | Phase 2 | Pending |
+| EXTRACT-05 | Phase 2 | Complete |
 | COLL-01 | Phase 3 | Pending |
 | COLL-02 | Phase 3 | Pending |
 | COLL-03 | Phase 3 | Pending |
@@ -131,7 +131,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIM-04 | Phase 2 | Pending |
 | CTRL-01 | Phase 2 | Pending |
 | CTRL-02 | Phase 3 | Pending |
-| CTRL-03 | Phase 2 | Pending |
+| CTRL-03 | Phase 2 | Complete |
 | CTRL-04 | Phase 2 | Pending |
 | CTRL-05 | Phase 2 | Pending |
 | CTRL-06 | Phase 2 | Pending |
