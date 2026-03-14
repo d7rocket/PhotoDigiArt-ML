@@ -13,7 +13,7 @@ Apollo 7 transforms photographs into explorable 3D data sculptures. The roadmap 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Pipeline Foundation** - Photo to point cloud to interactive 3D viewport in a desktop GUI (completed 2026-03-14)
-- [ ] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export
+- [x] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export (completed 2026-03-14)
 - [ ] **Phase 3: Discovery and Intelligence** - Semantic extraction, collection analysis, discovery mode, Claude API
 
 ## Phase Details
@@ -47,15 +47,15 @@ Plans:
   3. User can tune every visual parameter via sliders and controls that update the viewport in real-time, with undo/redo on all changes
   4. User can save/load full project state and export high-resolution still images with transparent background option
   5. Presets can be saved, loaded, and organized -- heavy compute runs in background while viewport remains smooth for exploration
-**Plans:** 4/6 plans executed
+**Plans:** 6/6 plans complete
 
 Plans:
-- [ ] 02-01-PLAN.md — GPU particle simulation engine with WGSL compute shaders (all 4 force types, SPH, flow fields)
-- [ ] 02-02-PLAN.md — Feature viewer panel and undo/redo system with slider debouncing
-- [ ] 02-03-PLAN.md — Simulation UI controls, FPS counter, simulate button, viewport wiring
-- [ ] 02-04-PLAN.md — Post-processing effects (bloom, DoF, SSAO, alpha trails)
-- [ ] 02-05-PLAN.md — Save/load projects, high-res PNG export, preset library
-- [ ] 02-06-PLAN.md — End-to-end creative sculpting verification checkpoint
+- [x] 02-01-PLAN.md — GPU particle simulation engine with WGSL compute shaders (all 4 force types, SPH, flow fields)
+- [x] 02-02-PLAN.md — Feature viewer panel and undo/redo system with slider debouncing
+- [x] 02-03-PLAN.md — Simulation UI controls, FPS counter, simulate button, viewport wiring
+- [x] 02-04-PLAN.md — Post-processing effects (bloom, DoF, SSAO, alpha trails)
+- [x] 02-05-PLAN.md — Save/load projects, high-res PNG export, preset library
+- [x] 02-06-PLAN.md — End-to-end creative sculpting verification checkpoint
 
 ### Phase 3: Discovery and Intelligence
 **Goal**: The system understands photo content semantically, reveals collection-level patterns, and proposes creative directions -- turning Apollo 7 from a tool into a creative collaborator
@@ -82,5 +82,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 5/5 | Complete    | 2026-03-14 |
-| 2. Creative Sculpting | 4/6 | In Progress|  |
+| 2. Creative Sculpting | 6/6 | Complete | 2026-03-14 |
 | 3. Discovery and Intelligence | 0/2 | Not started | - |
