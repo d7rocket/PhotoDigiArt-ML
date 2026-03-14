@@ -13,7 +13,7 @@ Apollo 7 transforms photographs into explorable 3D data sculptures. The roadmap 
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Pipeline Foundation** - Photo to point cloud to interactive 3D viewport in a desktop GUI (completed 2026-03-14)
-- [ ] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export (gap closure in progress)
+- [x] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export (gap closure in progress) (completed 2026-03-14)
 - [ ] **Phase 3: Discovery and Intelligence** - Semantic extraction, collection analysis, discovery mode, Claude API
 
 ## Phase Details
@@ -47,7 +47,7 @@ Plans:
   3. User can tune every visual parameter via sliders and controls that update the viewport in real-time, with undo/redo on all changes
   4. User can save/load full project state and export high-resolution still images with transparent background option
   5. Presets can be saved, loaded, and organized -- heavy compute runs in background while viewport remains smooth for exploration
-**Plans:** 8 plans (6 complete, 2 gap closure)
+**Plans:** 8/8 plans complete
 
 Plans:
 - [x] 02-01-PLAN.md — GPU particle simulation engine with WGSL compute shaders (all 4 force types, SPH, flow fields)
@@ -84,5 +84,5 @@ Phases execute in numeric order: 1 -> 2 -> 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 5/5 | Complete    | 2026-03-14 |
-| 2. Creative Sculpting | 6/8 | Gap closure | - |
+| 2. Creative Sculpting | 8/8 | Complete   | 2026-03-14 |
 | 3. Discovery and Intelligence | 0/2 | Not started | - |
