@@ -51,6 +51,7 @@ created: 2026-03-14
 | 02-03-03 | 03 | 2 | CTRL-04 | unit | `pytest tests/test_project_save_load.py -x` | W0 | pending |
 | 02-03-04 | 03 | 2 | CTRL-05 | unit | `pytest tests/test_export.py -x` | W0 | pending |
 | 02-03-05 | 03 | 2 | CTRL-06 | unit | `pytest tests/test_presets.py -x` | W0 | pending |
+| 02-04-02 | 04 | 2 | RENDER-05 | unit | `pytest tests/test_postfx_panel.py tests/test_postfx.py -x` | W0 | pending |
 
 *Status: pending / green / red / flaky*
 
@@ -65,6 +66,7 @@ created: 2026-03-14
 - [ ] `tests/test_sim_lifecycle.py` — stubs for RENDER-06 (start/stop/restart sim state machine, param routing)
 - [ ] `tests/test_sim_panel.py` — stubs for CTRL-01 (param_changed signal emits valid SimulationParams names, FPSCounter.tick behavior)
 - [ ] `tests/test_postfx.py` — stubs for RENDER-05 (bloom pass config, effect pass pipeline)
+- [ ] `tests/test_postfx_panel.py` — stubs for RENDER-05 (PostFXPanel instantiation, signal emission, undo stack push with merge_id >= 100)
 - [ ] `tests/test_undo_redo.py` — stubs for CTRL-03 (QUndoStack push/undo/redo, merge behavior)
 - [ ] `tests/test_project_save_load.py` — stubs for CTRL-04 (roundtrip serialize/deserialize)
 - [ ] `tests/test_export.py` — stubs for CTRL-05 (offscreen render produces valid PNG with alpha)
