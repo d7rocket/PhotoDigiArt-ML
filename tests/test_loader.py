@@ -89,7 +89,8 @@ class TestExtractMetadata:
     def test_extract_metadata(self, tmp_dir):
         from apollo7.ingestion.metadata import extract_metadata
 
-        path = _make_image(os.path.join(tmp_dir, "test.jpg"), "JPEG", size=(200, 150))
+        # size=(H, W) for numpy array; PIL reports (W, H)
+        path = _make_image(os.path.join(tmp_dir, "test.jpg"), "JPEG", size=(150, 200))
         meta = extract_metadata(path)
         assert meta["width"] == 200
         assert meta["height"] == 150
