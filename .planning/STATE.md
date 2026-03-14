@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-03-PLAN.md
-last_updated: "2026-03-14T17:12:22.209Z"
-last_activity: 2026-03-14 -- Plan 02-04 complete (post-processing effects)
+stopped_at: Completed 02-05-PLAN.md
+last_updated: "2026-03-14T17:19:04Z"
+last_activity: 2026-03-14 -- Plan 02-05 complete (project save/load, export, presets)
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 11
-  completed_plans: 9
-  percent: 73
+  completed_plans: 10
+  percent: 82
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 2 of 3 (Creative Sculpting)
-Plan: 4 of 6 in current phase (02-04 complete)
+Plan: 5 of 6 in current phase (02-05 complete)
 Status: In progress
-Last activity: 2026-03-14 -- Plan 02-04 complete (post-processing effects)
+Last activity: 2026-03-14 -- Plan 02-05 complete (project save/load, export, presets)
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Performance Metrics
 
@@ -53,6 +53,7 @@ Progress: [███████░░░] 73%
 | Phase 02 P01 | 8min | 3 tasks | 14 files |
 | Phase 02 P04 | 6min | 2 tasks | 12 files |
 | Phase 02 P03 | 7min | 2 tasks | 8 files |
+| Phase 02 P05 | 6min | 2 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,10 @@ Recent decisions affecting current work:
 - [Phase 02]: PostFX undo merge_id offsets 100+ to avoid sim param collision
 - [Phase 02]: 14 sim parameter sliders with compound param decomposition (gravity_y -> gravity tuple)
 - [Phase 02]: CPU readback prototype for sim-to-pygfx geometry update (optimize later)
+- [Phase 02-05]: JSON project file format (.apollo7) for human readability
+- [Phase 02-05]: Built-in presets in 4 categories (5 starter presets)
+- [Phase 02-05]: Offscreen wgpu canvas for PNG export with transparent bg support
+- [Phase 02-05]: Point cloud snapshot in project file for instant visual on load
 
 ### Pending Todos
 
@@ -105,6 +110,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T17:12:22.207Z
-Stopped at: Completed 02-03-PLAN.md
+Last session: 2026-03-14T17:19:04Z
+Stopped at: Completed 02-05-PLAN.md
 Resume file: None

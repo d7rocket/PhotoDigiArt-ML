@@ -49,9 +49,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
 - [ ] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
 - [x] **CTRL-03**: Undo/redo on all parameter changes
-- [ ] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
-- [ ] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
-- [ ] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
+- [x] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
+- [x] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
+- [x] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
 - [ ] **CTRL-07**: Preset interpolation -- smoothly blend between saved presets
 
 ### Discovery & AI
@@ -132,9 +132,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-01 | Phase 2 | Complete |
 | CTRL-02 | Phase 3 | Pending |
 | CTRL-03 | Phase 2 | Complete |
-| CTRL-04 | Phase 2 | Pending |
-| CTRL-05 | Phase 2 | Pending |
-| CTRL-06 | Phase 2 | Pending |
+| CTRL-04 | Phase 2 | Complete |
+| CTRL-05 | Phase 2 | Complete |
+| CTRL-06 | Phase 2 | Complete |
 | CTRL-07 | Phase 3 | Pending |
 | DISC-01 | Phase 3 | Pending |
 | DISC-02 | Phase 3 | Pending |
