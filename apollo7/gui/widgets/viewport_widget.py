@@ -435,17 +435,17 @@ class ViewportWidget(QtWidgets.QWidget):
         # Handle compound params (gravity_y, wind_x, wind_z)
         if name == "gravity_y":
             current = self._sim_engine.params.gravity
-            self._sim_engine.update_physics_param(
+            self._sim_engine.update_visual_param(
                 "gravity", (current[0], value, current[2])
             )
         elif name == "wind_x":
             current = self._sim_engine.params.wind
-            self._sim_engine.update_physics_param(
+            self._sim_engine.update_visual_param(
                 "wind", (value, current[1], current[2])
             )
         elif name == "wind_z":
             current = self._sim_engine.params.wind
-            self._sim_engine.update_physics_param(
+            self._sim_engine.update_visual_param(
                 "wind", (current[0], current[1], value)
             )
         elif SimulationParams.is_visual_param(name):

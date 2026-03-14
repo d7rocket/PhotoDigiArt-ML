@@ -61,6 +61,8 @@ class SimulationParams:
     performance_mode: float = 0.0
 
     # Category sets for hot-reload vs restart classification
+    # All params are visual (hot-reload) for now — the single-pass shader
+    # reads everything from the uniform buffer each frame, so no restart needed.
     _visual_params: set[str] = field(
         default_factory=lambda: {
             "noise_frequency",
@@ -69,13 +71,8 @@ class SimulationParams:
             "turbulence_scale",
             "speed",
             "damping",
-        },
-        repr=False,
-        compare=False,
-    )
-
-    _physics_params: set[str] = field(
-        default_factory=lambda: {
+            "gravity",
+            "wind",
             "viscosity",
             "pressure_strength",
             "surface_tension",
@@ -85,9 +82,13 @@ class SimulationParams:
             "smoothing_radius",
             "rest_density",
             "gas_constant",
-            "gravity",
-            "wind",
         },
+        repr=False,
+        compare=False,
+    )
+
+    _physics_params: set[str] = field(
+        default_factory=lambda: set(),
         repr=False,
         compare=False,
     )
@@ -151,8 +152,11 @@ class SimulationParams:
 
     @classmethod
     def is_visual_param(cls, name: str) -> bool:
-        """Check if a parameter supports hot-reload (no sim restart)."""
-        # Use instance default to get the set
+        """Check if a parameter supports hot-reload (no sim restart).
+
+        All params are visual for now — the single-pass shader reads
+        everything from the uniform buffer each frame.
+        """
         return name in {
             "noise_frequency",
             "noise_amplitude",
@@ -160,12 +164,8 @@ class SimulationParams:
             "turbulence_scale",
             "speed",
             "damping",
-        }
-
-    @classmethod
-    def is_physics_param(cls, name: str) -> bool:
-        """Check if a parameter requires simulation restart."""
-        return name in {
+            "gravity",
+            "wind",
             "viscosity",
             "pressure_strength",
             "surface_tension",
@@ -175,9 +175,12 @@ class SimulationParams:
             "smoothing_radius",
             "rest_density",
             "gas_constant",
-            "gravity",
-            "wind",
         }
+
+    @classmethod
+    def is_physics_param(cls, name: str) -> bool:
+        """Check if a parameter requires simulation restart."""
+        return False
 
     def with_update(self, **kwargs) -> SimulationParams:
         """Return a new SimulationParams with updated values.
