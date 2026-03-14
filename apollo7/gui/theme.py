@@ -290,6 +290,12 @@ def load_theme_qss() -> str:
         background-color: {accent};
     }}
 
+    /* === Feature Viewer === */
+    QWidget#feature-viewer {{
+        background-color: {bg_dark};
+        border-top: 1px solid {border};
+    }}
+
     /* === Tooltip === */
     QToolTip {{
         background-color: {bg_widget};

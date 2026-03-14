@@ -43,6 +43,7 @@ from apollo7.extraction.edges import EdgeExtractor
 from apollo7.extraction.pipeline import ExtractionPipeline
 from apollo7.gui.panels.controls_panel import ControlsPanel
 from apollo7.gui.panels.feature_strip import FeatureStripPanel
+from apollo7.gui.panels.feature_viewer import FeatureViewerPanel
 from apollo7.gui.panels.library_panel import LibraryPanel
 from apollo7.gui.widgets.progress_bar import ExtractionProgressBar
 from apollo7.gui.widgets.viewport_widget import ViewportWidget
@@ -122,12 +123,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # --- Horizontal splitter: viewport area | right panels ---
         h_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
 
-        # Left side: viewport + bottom feature strip
+        # Left side: viewport + bottom feature viewer
         left_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self.viewport = ViewportWidget()
-        self.feature_strip = FeatureStripPanel()
+        self.feature_strip = FeatureStripPanel()  # kept for backward compat
+        self.feature_viewer = FeatureViewerPanel()
         left_splitter.addWidget(self.viewport)
-        left_splitter.addWidget(self.feature_strip)
+        left_splitter.addWidget(self.feature_viewer)
         left_splitter.setSizes([850, 150])
         left_splitter.setCollapsible(1, True)
 
@@ -282,12 +284,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._selected_photo = photo_path
         self.controls_panel.btn_reextract.setEnabled(True)
 
-        # Show cached extraction results in feature strip if available
+        # Show cached extraction results in feature viewer if available
         results = self._extraction_results.get(photo_path)
         if results:
-            self.feature_strip.update_features(photo_path, results)
+            self.feature_viewer.update_features(photo_path, results)
         else:
-            self.feature_strip.clear()
+            self.feature_viewer.clear()
 
     # ------------------------------------------------------------------
     # Extraction
@@ -377,10 +379,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 layer_index=layer_index,
             )
 
-        # Update feature strip if this photo is selected (or auto-select first)
+        # Update feature viewer if this photo is selected (or auto-select first)
         if self._selected_photo == photo_path or self._selected_photo is None:
             self._selected_photo = photo_path
-            self.feature_strip.update_features(photo_path, features)
+            self.feature_viewer.update_features(photo_path, features)
 
         # Update library panel status
         logger.info("Extraction complete for %s", photo_path)
