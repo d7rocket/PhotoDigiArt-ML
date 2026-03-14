@@ -296,6 +296,69 @@ def load_theme_qss() -> str:
         border-top: 1px solid {border};
     }}
 
+    /* === Simulation Panel === */
+    QPushButton#btn-simulate {{
+        background-color: {accent};
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 14px;
+        border: none;
+        border-radius: 6px;
+        padding: 8px 16px;
+    }}
+    QPushButton#btn-simulate:hover {{
+        background-color: {accent_hover};
+    }}
+    QPushButton#btn-simulate:pressed {{
+        background-color: {accent_pressed};
+    }}
+    QPushButton#btn-simulate:disabled {{
+        background-color: {bg_panel};
+        color: {text_disabled};
+    }}
+
+    QPushButton#btn-reset-section {{
+        background-color: transparent;
+        color: {text_secondary};
+        border: 1px solid {border};
+        border-radius: 3px;
+        padding: 3px 8px;
+        font-size: 11px;
+    }}
+    QPushButton#btn-reset-section:hover {{
+        color: {text_primary};
+        border-color: {accent};
+    }}
+
+    QPushButton#btn-reset-all {{
+        background-color: transparent;
+        color: {text_secondary};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 5px 12px;
+        font-weight: 500;
+    }}
+    QPushButton#btn-reset-all:hover {{
+        color: {text_primary};
+        border-color: {accent};
+    }}
+
+    /* Collapsible group boxes (checkable toggle) */
+    QGroupBox::indicator {{
+        width: 12px;
+        height: 12px;
+    }}
+
+    /* === FPS Counter === */
+    QLabel#fps-counter {{
+        background-color: rgba(0, 0, 0, 150);
+        color: #ffffff;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 11px;
+        padding: 3px 6px;
+        border-radius: 3px;
+    }}
+
     /* === Tooltip === */
     QToolTip {{
         background-color: {bg_widget};
