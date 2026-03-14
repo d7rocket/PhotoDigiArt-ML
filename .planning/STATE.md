@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 02-06-PLAN.md (Phase 2 complete)
-last_updated: "2026-03-14T18:29:00Z"
-last_activity: 2026-03-14 -- Plan 02-06 complete (e2e verification checkpoint approved)
+status: planning
+stopped_at: Completed 02-07-PLAN.md
+last_updated: "2026-03-14T18:49:00.961Z"
+last_activity: 2026-03-14 -- Plan 02-06 complete (e2e verification checkpoint approved for speed and turbulence)
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 11
-  completed_plans: 11
+  completed_phases: 1
+  total_plans: 13
+  completed_plans: 12
   percent: 100
 ---
 
@@ -55,6 +55,7 @@ Progress: [██████████] 100%
 | Phase 02 P03 | 7min | 2 tasks | 8 files |
 | Phase 02 P05 | 6min | 2 tasks | 12 files |
 | Phase 02 P06 | 2min | 1 task (checkpoint) | 0 files |
+| Phase 02 P07 | 4min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,8 @@ Recent decisions affecting current work:
 - [Phase 02-05]: Point cloud snapshot in project file for instant visual on load
 - [Phase 02-06]: Partial approval -- flow field forces (speed, turbulence, gravity, wind) verified; attraction/repulsion/SPH not yet in shader
 - [Phase 02-06]: User accepted current simulation state as sufficient quality gate for Phase 2
+- [Phase 02]: CPU spatial hash build on init/restart only (not per-frame GPU hash)
+- [Phase 02]: Multi-pass GPU dispatch with separate command encoder per pass for synchronization
 
 ### Pending Todos
 
@@ -113,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T18:29:00Z
-Stopped at: Completed 02-06-PLAN.md (Phase 2 complete)
+Last session: 2026-03-14T18:49:00.959Z
+Stopped at: Completed 02-07-PLAN.md
 Resume file: None
