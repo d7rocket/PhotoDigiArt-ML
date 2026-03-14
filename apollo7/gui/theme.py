@@ -349,6 +349,24 @@ def load_theme_qss() -> str:
         height: 12px;
     }}
 
+    /* === PostFX Panel === */
+    QWidget#postfx-panel {{
+        background-color: {bg_dark};
+    }}
+
+    QPushButton#btn-reset-all-postfx {{
+        background-color: transparent;
+        color: {text_secondary};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 5px 12px;
+        font-weight: 500;
+    }}
+    QPushButton#btn-reset-all-postfx:hover {{
+        color: {text_primary};
+        border-color: {accent};
+    }}
+
     /* === FPS Counter === */
     QLabel#fps-counter {{
         background-color: rgba(0, 0, 0, 150);

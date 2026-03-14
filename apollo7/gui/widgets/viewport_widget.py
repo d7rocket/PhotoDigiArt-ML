@@ -4,7 +4,8 @@ Renders point clouds with PointsGaussianBlobMaterial for soft Gaussian
 blob particles. Provides orbit/zoom/pan via OrbitController.
 
 Supports progressive point cloud building (one cloud per photo),
-layout mode switching, and multi-photo stacking/merging.
+layout mode switching, multi-photo stacking/merging, and integrated
+simulation engine with FPS counter overlay.
 """
 
 from __future__ import annotations
@@ -22,7 +23,13 @@ from apollo7.config.settings import (
     OPACITY_DEFAULT,
     POINT_SIZE_DEFAULT,
 )
+from apollo7.gui.widgets.fps_counter import FPSCounter
+from apollo7.postfx.bloom import BloomController
+from apollo7.postfx.dof_pass import DepthOfFieldPass
+from apollo7.postfx.ssao_pass import SSAOPass
+from apollo7.postfx.trails import TrailAccumulator
 from apollo7.rendering.camera import CameraController
+from apollo7.simulation.parameters import SimulationParams
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +47,8 @@ class ViewportWidget(QtWidgets.QWidget):
     """PySide6 widget containing a pygfx 3D viewport.
 
     Supports progressive point cloud building with per-photo cloud
-    management, layout mode switching, and real-time material updates.
+    management, layout mode switching, real-time material updates,
+    and integrated simulation engine with FPS counter.
     """
 
     # Emitted when layout mode or multi-photo mode changes and clouds
@@ -84,6 +92,19 @@ class ViewportWidget(QtWidgets.QWidget):
         self._layout_mode: str = "depth_projected"
         self._multi_photo_mode: str = "stacked"
 
+        # Post-processing effects (None until init_postfx is called)
+        self._bloom: BloomController | None = None
+        self._dof: DepthOfFieldPass | None = None
+        self._ssao: SSAOPass | None = None
+        self._trails: TrailAccumulator | None = None
+
+        # Simulation engine (None until Simulate is clicked)
+        self._sim_engine = None
+
+        # FPS counter overlay
+        self._fps_counter = FPSCounter(self)
+        self._fps_counter.raise_()
+
         # Log blending approach
         if BLEND_MODE_AVAILABLE:
             logger.info("Blending: additive via blend_mode")
@@ -96,8 +117,19 @@ class ViewportWidget(QtWidgets.QWidget):
         # Start render loop (no test points -- real data comes from extraction)
         self._canvas.request_draw(self._animate)
 
+    def resizeEvent(self, event):
+        """Reposition FPS counter on resize."""
+        super().resizeEvent(event)
+        # Top-right corner with 8px margin
+        w = self._fps_counter.width()
+        self._fps_counter.move(self.width() - w - 8, 8)
+
     def _animate(self):
         """Called each frame to render the scene."""
+        self._fps_counter.tick()
+        if self._sim_engine and self._sim_engine.running and not self._sim_engine.paused:
+            self._sim_engine.step()
+            self._update_points_from_sim()
         self._renderer.render(self._scene, self._camera)
 
     # ------------------------------------------------------------------
@@ -272,3 +304,171 @@ class ViewportWidget(QtWidgets.QWidget):
             # Scene has no bounding sphere — fall back to manual framing
             pass
         self._camera_controller.set_three_quarter_view()
+
+    # ------------------------------------------------------------------
+    # Post-processing effects
+    # ------------------------------------------------------------------
+
+    def init_postfx(self) -> None:
+        """Initialize all post-processing effects.
+
+        Creates BloomController (attached to renderer), DoF, SSAO, and
+        TrailAccumulator instances. Bloom is enabled by default; others
+        are disabled until toggled on via the PostFX panel.
+        """
+        try:
+            self._bloom = BloomController(self._renderer)
+            logger.info("Bloom post-fx initialized")
+        except Exception as exc:
+            logger.warning("Failed to initialize bloom: %s", exc)
+            self._bloom = None
+
+        self._dof = DepthOfFieldPass()
+        self._ssao = SSAOPass()
+        self._trails = TrailAccumulator()
+
+        logger.info("Post-processing effects initialized")
+
+    def update_postfx_param(self, name: str, value: float) -> None:
+        """Update a post-processing parameter by name.
+
+        Args:
+            name: Parameter name (e.g. 'bloom_strength', 'dof_focal_distance').
+            value: New parameter value.
+        """
+        if name == "bloom_strength" and self._bloom is not None:
+            self._bloom.set_strength(value)
+        elif name == "dof_focal_distance" and self._dof is not None:
+            self._dof.focal_distance = value
+        elif name == "dof_aperture" and self._dof is not None:
+            self._dof.aperture = value
+        elif name == "ssao_radius" and self._ssao is not None:
+            self._ssao.radius = value
+        elif name == "ssao_intensity" and self._ssao is not None:
+            self._ssao.intensity = value
+        elif name == "trail_length" and self._trails is not None:
+            self._trails.trail_length = value
+        else:
+            logger.debug("Unknown postfx param: %s", name)
+
+    def toggle_postfx(self, effect: str, enabled: bool) -> None:
+        """Toggle a post-processing effect on/off.
+
+        Args:
+            effect: Effect name ('bloom', 'dof', 'ssao', 'trails').
+            enabled: Whether the effect should be enabled.
+        """
+        if effect == "bloom" and self._bloom is not None:
+            self._bloom.set_enabled(enabled)
+        elif effect == "dof" and self._dof is not None:
+            self._dof.enabled = enabled
+        elif effect == "ssao" and self._ssao is not None:
+            self._ssao.enabled = enabled
+        elif effect == "trails" and self._trails is not None:
+            self._trails.enabled = enabled
+        else:
+            logger.debug("Unknown postfx effect: %s", effect)
+
+    # ------------------------------------------------------------------
+    # Simulation engine integration
+    # ------------------------------------------------------------------
+
+    def init_simulation(
+        self,
+        positions: np.ndarray,
+        colors: np.ndarray,
+        feature_textures: dict[str, np.ndarray] | None = None,
+    ) -> None:
+        """Initialize the simulation engine with point cloud data.
+
+        Creates a SimulationEngine using the renderer's wgpu device,
+        uploads initial state, and prepares compute pipelines.
+
+        Args:
+            positions: (N, 3) float32 array of XYZ positions.
+            colors: (N, 4) float32 array of RGBA colors.
+            feature_textures: Optional dict with "edge_map" and/or "depth_map".
+        """
+        from apollo7.simulation.engine import SimulationEngine
+
+        device = self._renderer.device
+        self._sim_engine = SimulationEngine(device)
+        self._sim_engine.initialize(positions, colors, feature_textures)
+        logger.info("Simulation initialized with %d particles", positions.shape[0])
+
+    def start_simulation(self) -> None:
+        """Start the simulation (engine must be initialized first)."""
+        if self._sim_engine is None:
+            logger.warning("Cannot start simulation: engine not initialized")
+            return
+        if not self._sim_engine.running:
+            self._sim_engine.restart()
+        logger.info("Simulation started")
+
+    def pause_simulation(self) -> None:
+        """Pause the running simulation."""
+        if self._sim_engine:
+            self._sim_engine.pause()
+
+    def resume_simulation(self) -> None:
+        """Resume the paused simulation."""
+        if self._sim_engine:
+            self._sim_engine.resume()
+
+    def toggle_pause(self) -> None:
+        """Toggle between paused and running simulation states."""
+        if self._sim_engine:
+            self._sim_engine.toggle_pause()
+
+    def update_sim_param(self, name: str, value: float) -> None:
+        """Route a parameter update to the simulation engine.
+
+        Visual params are hot-reloaded; physics params trigger restart.
+
+        Args:
+            name: Parameter name from SimulationParams.
+            value: New parameter value.
+        """
+        if self._sim_engine is None:
+            return
+
+        # Handle compound params (gravity_y, wind_x, wind_z)
+        if name == "gravity_y":
+            current = self._sim_engine.params.gravity
+            self._sim_engine.update_physics_param(
+                "gravity", (current[0], value, current[2])
+            )
+        elif name == "wind_x":
+            current = self._sim_engine.params.wind
+            self._sim_engine.update_physics_param(
+                "wind", (value, current[1], current[2])
+            )
+        elif name == "wind_z":
+            current = self._sim_engine.params.wind
+            self._sim_engine.update_physics_param(
+                "wind", (current[0], current[1], value)
+            )
+        elif SimulationParams.is_visual_param(name):
+            self._sim_engine.update_visual_param(name, value)
+        elif SimulationParams.is_physics_param(name):
+            self._sim_engine.update_physics_param(name, value)
+        else:
+            logger.warning("Unknown simulation param: %s", name)
+
+    def _update_points_from_sim(self) -> None:
+        """Read particle positions from GPU and update pygfx geometry.
+
+        Falls back to CPU readback + re-upload for prototype compatibility.
+        Direct buffer sharing can be optimized later.
+        """
+        if self._sim_engine is None or not self._point_objects:
+            return
+
+        try:
+            positions = self._sim_engine._particle_buffer.read_positions()
+            # Update the first (primary) point cloud geometry
+            pts = self._point_objects[0]
+            geo = pts.geometry
+            geo.positions = gfx.Buffer(positions.astype(np.float32))
+        except Exception as exc:
+            logger.debug("Failed to update points from sim: %s", exc)
