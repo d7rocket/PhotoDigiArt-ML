@@ -86,7 +86,10 @@ class DepthExtractor(BaseExtractor):
         # Get model input dimensions
         model_input = self._session.get_inputs()[0]
         input_name = model_input.name
-        _, _, model_h, model_w = model_input.shape
+        input_shape = model_input.shape
+        # ONNX dynamic shapes may return strings (e.g., "height") — use defaults
+        model_h = input_shape[2] if isinstance(input_shape[2], int) else 518
+        model_w = input_shape[3] if isinstance(input_shape[3], int) else 518
 
         # Convert float32 [0,1] -> uint8 [0,255] for preprocessing
         img_uint8 = (np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)

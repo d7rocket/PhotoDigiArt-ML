@@ -264,5 +264,11 @@ class ViewportWidget(QtWidgets.QWidget):
 
     def auto_frame(self):
         """Position camera to show the entire scene with three-quarter view."""
-        self._camera.show_object(self._scene)
+        if not self._point_objects:
+            return  # Nothing to frame — skip to avoid bounding sphere error
+        try:
+            self._camera.show_object(self._scene)
+        except ValueError:
+            # Scene has no bounding sphere — fall back to manual framing
+            pass
         self._camera_controller.set_three_quarter_view()
