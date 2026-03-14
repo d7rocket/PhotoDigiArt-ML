@@ -25,12 +25,16 @@ from typing import Any
 
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6.QtGui import QUndoStack
 
 from apollo7.config.settings import (
     DEPTH_EXAGGERATION_DEFAULT,
     MIN_WINDOW_SIZE,
+    OPACITY_DEFAULT,
+    POINT_SIZE_DEFAULT,
     WINDOW_SIZE,
 )
+from apollo7.gui.widgets.undo_commands import ParameterChangeCommand
 from apollo7.extraction.base import ExtractionResult
 from apollo7.extraction.cache import FeatureCache
 from apollo7.extraction.color import ColorExtractor
@@ -87,6 +91,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self._selected_photo: str | None = None
         # Current depth exaggeration value
         self._depth_exaggeration: float = DEPTH_EXAGGERATION_DEFAULT
+
+        # Undo/redo stack
+        self._undo_stack = QUndoStack(self)
+
+        # Track previous slider values for undo commands
+        self._prev_values: dict[str, float] = {
+            "point_size": POINT_SIZE_DEFAULT,
+            "opacity": OPACITY_DEFAULT,
+            "depth_exaggeration": DEPTH_EXAGGERATION_DEFAULT,
+        }
 
         # Extraction pipeline and point cloud generator
         self._pipeline = ExtractionPipeline(
@@ -147,16 +161,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.controls_panel.btn_extract.clicked.connect(self._on_extract)
         self.controls_panel.btn_reextract.clicked.connect(self._on_reextract)
 
-        # Controls: sliders -> viewport
+        # Controls: sliders -> viewport (wrapped with undo support)
         self.controls_panel.point_size_changed.connect(
-            lambda v: self.viewport.update_point_material(point_size=v)
+            lambda v: self._push_param_change("point_size", v, 0)
         )
         self.controls_panel.opacity_changed.connect(
-            lambda v: self.viewport.update_point_material(opacity=v)
+            lambda v: self._push_param_change("opacity", v, 1)
         )
         self.controls_panel.depth_exaggeration_changed.connect(
-            self._on_depth_exaggeration_changed
+            lambda v: self._push_param_change("depth_exaggeration", v, 2)
         )
+
+        # Undo/redo keyboard shortcuts
+        undo_action = self._undo_stack.createUndoAction(self, "Undo")
+        undo_action.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Z))
+        self.addAction(undo_action)
+
+        redo_action = self._undo_stack.createRedoAction(self, "Redo")
+        redo_action.setShortcut(
+            QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_Z)
+        )
+        self.addAction(redo_action)
 
         # Controls: layout mode toggle -> viewport
         self.controls_panel.layout_mode_changed.connect(
@@ -378,6 +403,37 @@ class MainWindow(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------
     # Layout regeneration
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Undo/redo parameter change support
+    # ------------------------------------------------------------------
+
+    def _push_param_change(
+        self, param_name: str, new_value: float, merge_id_offset: int
+    ) -> None:
+        """Push an undoable parameter change onto the undo stack."""
+        old_value = self._prev_values.get(param_name, new_value)
+        if old_value == new_value:
+            return
+        cmd = ParameterChangeCommand(
+            param_name=param_name,
+            old_value=old_value,
+            new_value=new_value,
+            apply_fn=self._apply_param,
+            merge_id_offset=merge_id_offset,
+        )
+        self._prev_values[param_name] = new_value
+        self._undo_stack.push(cmd)
+
+    def _apply_param(self, param_name: str, value: float) -> None:
+        """Apply a parameter value to the viewport (called by undo/redo)."""
+        self._prev_values[param_name] = value
+        if param_name == "point_size":
+            self.viewport.update_point_material(point_size=value)
+        elif param_name == "opacity":
+            self.viewport.update_point_material(opacity=value)
+        elif param_name == "depth_exaggeration":
+            self._on_depth_exaggeration_changed(value)
 
     def _on_depth_exaggeration_changed(self, value: float) -> None:
         """Handle depth exaggeration slider change -- triggers regeneration."""
