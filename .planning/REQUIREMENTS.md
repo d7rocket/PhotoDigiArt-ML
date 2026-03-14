@@ -34,7 +34,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
 - [x] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
 - [x] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
-- [ ] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
+- [x] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
 - [ ] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
 
 ### Generative Models & Simulation
@@ -46,7 +46,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Creative Controls
 
-- [ ] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
+- [x] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
 - [ ] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
 - [x] **CTRL-03**: Undo/redo on all parameter changes
 - [ ] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
@@ -123,13 +123,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RENDER-03 | Phase 1 | Complete |
 | RENDER-04 | Phase 2 | Complete |
 | RENDER-05 | Phase 2 | Complete |
-| RENDER-06 | Phase 2 | Pending |
+| RENDER-06 | Phase 2 | Complete |
 | RENDER-07 | Phase 3 | Pending |
 | SIM-01 | Phase 2 | Complete |
 | SIM-02 | Phase 2 | Complete |
 | SIM-03 | Phase 2 | Complete |
 | SIM-04 | Phase 2 | Complete |
-| CTRL-01 | Phase 2 | Pending |
+| CTRL-01 | Phase 2 | Complete |
 | CTRL-02 | Phase 3 | Pending |
 | CTRL-03 | Phase 2 | Complete |
 | CTRL-04 | Phase 2 | Pending |

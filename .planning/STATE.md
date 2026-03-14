@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 02-04-PLAN.md
-last_updated: "2026-03-14T17:12:13.688Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-03-14T17:12:22.209Z"
 last_activity: 2026-03-14 -- Plan 02-04 complete (post-processing effects)
 progress:
   total_phases: 3
@@ -52,6 +52,7 @@ Progress: [███████░░░] 73%
 *Updated after each plan completion*
 | Phase 02 P01 | 8min | 3 tasks | 14 files |
 | Phase 02 P04 | 6min | 2 tasks | 12 files |
+| Phase 02 P03 | 7min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Recent decisions affecting current work:
 - [Phase 02]: DoF/SSAO as param controllers (pygfx EffectPass API not public for custom shaders)
 - [Phase 02]: Trails via ghost point history with alpha decay (not framebuffer accumulation)
 - [Phase 02]: PostFX undo merge_id offsets 100+ to avoid sim param collision
+- [Phase 02]: 14 sim parameter sliders with compound param decomposition (gravity_y -> gravity tuple)
+- [Phase 02]: CPU readback prototype for sim-to-pygfx geometry update (optimize later)
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T17:11:51.432Z
-Stopped at: Completed 02-04-PLAN.md
+Last session: 2026-03-14T17:12:22.207Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
