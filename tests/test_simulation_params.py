@@ -114,8 +114,9 @@ class TestParamClassification:
                 f"{name} should not be physics"
             )
 
-    def test_physics_params(self):
-        physics = [
+    def test_all_params_are_visual(self):
+        # All params reclassified as visual in d2f401c -- hot-reload without restart
+        formerly_physics = [
             "viscosity",
             "pressure_strength",
             "surface_tension",
@@ -128,12 +129,12 @@ class TestParamClassification:
             "gravity",
             "wind",
         ]
-        for name in physics:
-            assert SimulationParams.is_physics_param(name), (
-                f"{name} should be physics"
+        for name in formerly_physics:
+            assert SimulationParams.is_visual_param(name), (
+                f"{name} should be visual (all params are visual post d2f401c)"
             )
-            assert not SimulationParams.is_visual_param(name), (
-                f"{name} should not be visual"
+            assert not SimulationParams.is_physics_param(name), (
+                f"{name} should not be physics (is_physics_param always False)"
             )
 
     def test_unknown_param_is_neither(self):

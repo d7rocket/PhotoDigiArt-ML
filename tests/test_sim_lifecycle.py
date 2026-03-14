@@ -249,8 +249,8 @@ class TestSimLifecycle:
         viewport_widget.update_sim_param("speed", 2.5)
         assert ("speed", 2.5) in engine._visual_calls
 
-    def test_update_sim_param_routes_physics(self, viewport_widget):
-        """Physics params route to update_physics_param."""
+    def test_update_sim_param_viscosity_routes_visual(self, viewport_widget):
+        """Viscosity routes to update_visual_param (all params visual post d2f401c)."""
         engine = FakeSimulationEngine()
         positions = np.random.randn(50, 3).astype(np.float32)
         colors = np.random.rand(50, 4).astype(np.float32)
@@ -258,10 +258,11 @@ class TestSimLifecycle:
         viewport_widget._sim_engine = engine
 
         viewport_widget.update_sim_param("viscosity", 0.5)
-        assert ("viscosity", 0.5) in engine._physics_calls
+        assert ("viscosity", 0.5) in engine._visual_calls
+        assert len(engine._physics_calls) == 0
 
-    def test_update_sim_param_gravity_y(self, viewport_widget):
-        """gravity_y compound param updates gravity tuple correctly."""
+    def test_update_sim_param_gravity_y_routes_visual(self, viewport_widget):
+        """gravity_y compound param routes to visual with gravity tuple (post d2f401c)."""
         engine = FakeSimulationEngine()
         positions = np.random.randn(50, 3).astype(np.float32)
         colors = np.random.rand(50, 4).astype(np.float32)
@@ -269,14 +270,15 @@ class TestSimLifecycle:
         viewport_widget._sim_engine = engine
 
         viewport_widget.update_sim_param("gravity_y", -0.5)
-        # Should route to physics with gravity tuple
-        assert len(engine._physics_calls) == 1
-        name, val = engine._physics_calls[0]
+        # Should route to visual with gravity tuple
+        assert len(engine._visual_calls) == 1
+        name, val = engine._visual_calls[0]
         assert name == "gravity"
         assert val[1] == -0.5
+        assert len(engine._physics_calls) == 0
 
-    def test_update_sim_param_wind_x(self, viewport_widget):
-        """wind_x compound param updates wind tuple correctly."""
+    def test_update_sim_param_wind_x_routes_visual(self, viewport_widget):
+        """wind_x compound param routes to visual with wind tuple (post d2f401c)."""
         engine = FakeSimulationEngine()
         positions = np.random.randn(50, 3).astype(np.float32)
         colors = np.random.rand(50, 4).astype(np.float32)
@@ -284,10 +286,11 @@ class TestSimLifecycle:
         viewport_widget._sim_engine = engine
 
         viewport_widget.update_sim_param("wind_x", 0.3)
-        assert len(engine._physics_calls) == 1
-        name, val = engine._physics_calls[0]
+        assert len(engine._visual_calls) == 1
+        name, val = engine._visual_calls[0]
         assert name == "wind"
         assert val[0] == 0.3
+        assert len(engine._physics_calls) == 0
 
     def test_no_error_when_engine_none(self, viewport_widget):
         """update_sim_param does not error when engine is None."""
