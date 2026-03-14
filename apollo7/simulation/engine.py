@@ -26,6 +26,26 @@ logger = logging.getLogger(__name__)
 _CHUNK_SIZE = 256 * 1024  # 256K particles
 _WORKGROUP_SIZE = 256
 
+# Noise functions from integrate.wgsl (lines 1-120) needed by forces.wgsl
+# Extract once at module level for efficiency
+_NOISE_FUNCTIONS_END_MARKER = "// Shared struct definitions"
+
+
+def _extract_noise_functions() -> str:
+    """Extract noise function definitions from integrate.wgsl.
+
+    Returns the portion of integrate.wgsl before the struct definitions,
+    which contains mod289, permute, perlin3d, and fbm3d functions.
+    """
+    source = load_shader("integrate")
+    # Find where struct definitions begin
+    idx = source.find(_NOISE_FUNCTIONS_END_MARKER)
+    if idx > 0:
+        return source[:idx]
+    # Fallback: return first 120 lines (noise functions)
+    lines = source.split("\n")
+    return "\n".join(lines[:120])
+
 
 class SimState(enum.Enum):
     """Simulation lifecycle states."""
@@ -71,6 +91,18 @@ class SimulationEngine:
         # Compute pipelines (created during initialize)
         self._integrate_pipeline = None
         self._integrate_bind_group = None
+        self._integrate_bgl = None
+
+        # Forces pipeline
+        self._forces_pipeline = None
+        self._forces_bgl = None
+        self._forces_bind_group = None
+
+        # SPH pipelines (density + force from same shader module)
+        self._sph_density_pipeline = None
+        self._sph_force_pipeline = None
+        self._sph_bgl = None
+        self._sph_bind_group = None
 
         logger.info("SimulationEngine created")
 
@@ -108,7 +140,9 @@ class SimulationEngine:
         else:
             self._has_feature_textures = False
 
-        # Build compute pipeline (single-pass: forces computed inline in shader)
+        # Build all compute pipelines
+        self._build_forces_pipeline()
+        self._build_sph_pipelines()
         self._build_integrate_pipeline()
 
         # Upload initial params
@@ -149,18 +183,22 @@ class SimulationEngine:
                 setattr(self, f"_{name}_texture", texture)
                 logger.info("Uploaded %s texture: %dx%d", name, w, h)
 
-    def _build_integrate_pipeline(self) -> None:
-        """Build the integration compute pipeline.
+    def _build_forces_pipeline(self) -> None:
+        """Build the external forces compute pipeline.
 
-        Single-pass pipeline: forces (flow field, gravity, wind) are computed
-        inline in the shader. No separate force accumulation buffer needed.
+        Handles noise dependency: forces.wgsl calls perlin3d() which is
+        defined in integrate.wgsl. Prepend noise functions to forces shader.
         """
         import wgpu
 
-        shader_source = load_shader("integrate")
+        # Load forces shader and prepend noise functions it depends on
+        noise_src = _extract_noise_functions()
+        forces_src = load_shader("forces")
+        shader_source = noise_src + "\n" + forces_src
+
         shader_module = self._device.create_shader_module(code=shader_source)
 
-        # Bind group layout: particles_in, particles_out, params
+        # Bind group layout: 6 bindings matching forces.wgsl
         bgl = self._device.create_bind_group_layout(
             entries=[
                 {
@@ -180,6 +218,170 @@ class SimulationEngine:
                     "visibility": wgpu.ShaderStage.COMPUTE,
                     "buffer": {"type": wgpu.BufferBindingType.uniform},
                 },
+                {
+                    "binding": 3,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 4,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 5,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+            ],
+        )
+
+        pipeline_layout = self._device.create_pipeline_layout(
+            bind_group_layouts=[bgl]
+        )
+        self._forces_pipeline = self._device.create_compute_pipeline(
+            layout=pipeline_layout,
+            compute={
+                "module": shader_module,
+                "entry_point": "compute_external_forces",
+            },
+        )
+        self._forces_bgl = bgl
+        logger.info("Forces compute pipeline built")
+
+    def _build_sph_pipelines(self) -> None:
+        """Build SPH density and force compute pipelines.
+
+        Both entry points (compute_density, compute_sph_forces) share the
+        same shader module and bind group layout with 7 bindings.
+        """
+        import wgpu
+
+        shader_source = load_shader("sph")
+        shader_module = self._device.create_shader_module(code=shader_source)
+
+        # Bind group layout: 7 bindings matching sph.wgsl
+        bgl = self._device.create_bind_group_layout(
+            entries=[
+                {
+                    "binding": 0,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 1,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {"type": wgpu.BufferBindingType.uniform},
+                },
+                {
+                    "binding": 2,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {"type": wgpu.BufferBindingType.storage},
+                },
+                {
+                    "binding": 3,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 4,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 5,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 6,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {"type": wgpu.BufferBindingType.storage},
+                },
+            ],
+        )
+
+        pipeline_layout = self._device.create_pipeline_layout(
+            bind_group_layouts=[bgl]
+        )
+
+        self._sph_density_pipeline = self._device.create_compute_pipeline(
+            layout=pipeline_layout,
+            compute={
+                "module": shader_module,
+                "entry_point": "compute_density",
+            },
+        )
+        self._sph_force_pipeline = self._device.create_compute_pipeline(
+            layout=pipeline_layout,
+            compute={
+                "module": shader_module,
+                "entry_point": "compute_sph_forces",
+            },
+        )
+        self._sph_bgl = bgl
+        logger.info("SPH density + force compute pipelines built")
+
+    def _build_integrate_pipeline(self) -> None:
+        """Build the integration compute pipeline.
+
+        Reads inline flow forces plus external_forces and sph_force_input
+        buffers from the forces/SPH passes.
+        """
+        import wgpu
+
+        shader_source = load_shader("integrate")
+        shader_module = self._device.create_shader_module(code=shader_source)
+
+        # Bind group layout: 5 bindings (particles_in, particles_out, params,
+        # external_forces, sph_force_input)
+        bgl = self._device.create_bind_group_layout(
+            entries=[
+                {
+                    "binding": 0,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 1,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {"type": wgpu.BufferBindingType.storage},
+                },
+                {
+                    "binding": 2,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {"type": wgpu.BufferBindingType.uniform},
+                },
+                {
+                    "binding": 3,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
+                {
+                    "binding": 4,
+                    "visibility": wgpu.ShaderStage.COMPUTE,
+                    "buffer": {
+                        "type": wgpu.BufferBindingType.read_only_storage
+                    },
+                },
             ],
         )
 
@@ -191,12 +393,133 @@ class SimulationEngine:
             compute={"module": shader_module, "entry_point": "integrate"},
         )
 
-        # Create bind group (will be recreated on buffer swap)
         self._integrate_bgl = bgl
         self._rebuild_integrate_bind_group()
 
+    def _rebuild_forces_bind_group(self) -> None:
+        """Rebuild forces bind group for current buffer orientation."""
+        pb = self._particle_buffer
+        self._forces_bind_group = self._device.create_bind_group(
+            layout=self._forces_bgl,
+            entries=[
+                {
+                    "binding": 0,
+                    "resource": {
+                        "buffer": pb.input_buffer,
+                        "offset": 0,
+                        "size": pb.input_buffer.size,
+                    },
+                },
+                {
+                    "binding": 1,
+                    "resource": {
+                        "buffer": pb.forces_buffer,
+                        "offset": 0,
+                        "size": pb.forces_buffer.size,
+                    },
+                },
+                {
+                    "binding": 2,
+                    "resource": {
+                        "buffer": pb.params_buffer,
+                        "offset": 0,
+                        "size": pb.params_buffer.size,
+                    },
+                },
+                {
+                    "binding": 3,
+                    "resource": {
+                        "buffer": pb.cell_counts_buffer,
+                        "offset": 0,
+                        "size": pb.cell_counts_buffer.size,
+                    },
+                },
+                {
+                    "binding": 4,
+                    "resource": {
+                        "buffer": pb.cell_offsets_buffer,
+                        "offset": 0,
+                        "size": pb.cell_offsets_buffer.size,
+                    },
+                },
+                {
+                    "binding": 5,
+                    "resource": {
+                        "buffer": pb.sorted_indices_buffer,
+                        "offset": 0,
+                        "size": pb.sorted_indices_buffer.size,
+                    },
+                },
+            ],
+        )
+
+    def _rebuild_sph_bind_group(self) -> None:
+        """Rebuild SPH bind group for current buffer orientation."""
+        pb = self._particle_buffer
+        self._sph_bind_group = self._device.create_bind_group(
+            layout=self._sph_bgl,
+            entries=[
+                {
+                    "binding": 0,
+                    "resource": {
+                        "buffer": pb.input_buffer,
+                        "offset": 0,
+                        "size": pb.input_buffer.size,
+                    },
+                },
+                {
+                    "binding": 1,
+                    "resource": {
+                        "buffer": pb.params_buffer,
+                        "offset": 0,
+                        "size": pb.params_buffer.size,
+                    },
+                },
+                {
+                    "binding": 2,
+                    "resource": {
+                        "buffer": pb.densities_buffer,
+                        "offset": 0,
+                        "size": pb.densities_buffer.size,
+                    },
+                },
+                {
+                    "binding": 3,
+                    "resource": {
+                        "buffer": pb.cell_counts_buffer,
+                        "offset": 0,
+                        "size": pb.cell_counts_buffer.size,
+                    },
+                },
+                {
+                    "binding": 4,
+                    "resource": {
+                        "buffer": pb.cell_offsets_buffer,
+                        "offset": 0,
+                        "size": pb.cell_offsets_buffer.size,
+                    },
+                },
+                {
+                    "binding": 5,
+                    "resource": {
+                        "buffer": pb.sorted_indices_buffer,
+                        "offset": 0,
+                        "size": pb.sorted_indices_buffer.size,
+                    },
+                },
+                {
+                    "binding": 6,
+                    "resource": {
+                        "buffer": pb.sph_forces_buffer,
+                        "offset": 0,
+                        "size": pb.sph_forces_buffer.size,
+                    },
+                },
+            ],
+        )
+
     def _rebuild_integrate_bind_group(self) -> None:
-        """Rebuild bind group after buffer swap."""
+        """Rebuild integrate bind group after buffer swap."""
         pb = self._particle_buffer
         self._integrate_bind_group = self._device.create_bind_group(
             layout=self._integrate_bgl,
@@ -225,6 +548,22 @@ class SimulationEngine:
                         "size": pb.params_buffer.size,
                     },
                 },
+                {
+                    "binding": 3,
+                    "resource": {
+                        "buffer": pb.forces_buffer,
+                        "offset": 0,
+                        "size": pb.forces_buffer.size,
+                    },
+                },
+                {
+                    "binding": 4,
+                    "resource": {
+                        "buffer": pb.sph_forces_buffer,
+                        "offset": 0,
+                        "size": pb.sph_forces_buffer.size,
+                    },
+                },
             ],
         )
 
@@ -241,7 +580,19 @@ class SimulationEngine:
             self._step_once()
 
     def _step_once(self) -> None:
-        """Execute a single simulation step."""
+        """Execute a single simulation step.
+
+        Pipeline order:
+        1. Clear force buffers
+        2. Forces pass (attraction/repulsion + gravity + wind)
+        3. SPH density pass (if not performance mode)
+        4. SPH force pass (if not performance mode)
+        5. Integration pass (flow field + external forces + SPH forces)
+        6. Swap buffers
+
+        Each pipeline dispatch uses a separate command encoder submission
+        to ensure proper synchronization between passes.
+        """
         # Update time
         self._time += self._params.dt
         updated_params = self._params.with_update(
@@ -253,10 +604,54 @@ class SimulationEngine:
 
         n = self._particle_buffer.particle_count
 
-        # Rebuild bind group for current buffer orientation
+        # Clear force accumulation buffers
+        self._particle_buffer.clear_forces()
+
+        # Rebuild all bind groups for current buffer orientation
+        self._rebuild_forces_bind_group()
+        if not self._performance_mode:
+            self._rebuild_sph_bind_group()
         self._rebuild_integrate_bind_group()
 
-        # Dispatch integration pass (chunked)
+        # Pass 1: External forces (attraction/repulsion/gravity/wind)
+        encoder = self._device.create_command_encoder()
+        compute_pass = encoder.begin_compute_pass()
+        self._dispatch_chunked(
+            compute_pass,
+            self._forces_pipeline,
+            self._forces_bind_group,
+            n,
+        )
+        compute_pass.end()
+        self._device.queue.submit([encoder.finish()])
+
+        # Pass 2-3: SPH (density then force) -- skipped in performance mode
+        if not self._performance_mode:
+            # SPH density pass
+            encoder = self._device.create_command_encoder()
+            compute_pass = encoder.begin_compute_pass()
+            self._dispatch_chunked(
+                compute_pass,
+                self._sph_density_pipeline,
+                self._sph_bind_group,
+                n,
+            )
+            compute_pass.end()
+            self._device.queue.submit([encoder.finish()])
+
+            # SPH force pass
+            encoder = self._device.create_command_encoder()
+            compute_pass = encoder.begin_compute_pass()
+            self._dispatch_chunked(
+                compute_pass,
+                self._sph_force_pipeline,
+                self._sph_bind_group,
+                n,
+            )
+            compute_pass.end()
+            self._device.queue.submit([encoder.finish()])
+
+        # Pass 4: Integration (flow field + external forces + SPH)
         encoder = self._device.create_command_encoder()
         compute_pass = encoder.begin_compute_pass()
         self._dispatch_chunked(
@@ -349,6 +744,8 @@ class SimulationEngine:
         self._particle_buffer.upload(
             self._initial_positions, self._initial_colors
         )
+        # Rebuild spatial hash from initial positions
+        self._particle_buffer.build_spatial_hash(self._initial_positions)
         self._particle_buffer.update_params(self._params)
         self._time = 0.0
         self._state = SimState.RUNNING

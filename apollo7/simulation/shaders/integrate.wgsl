@@ -167,6 +167,8 @@ struct SimParams {
 @group(0) @binding(0) var<storage, read> particles_in: array<Particle>;
 @group(0) @binding(1) var<storage, read_write> particles_out: array<Particle>;
 @group(0) @binding(2) var<uniform> params: SimParams;
+@group(0) @binding(3) var<storage, read> external_forces: array<vec4<f32>>;
+@group(0) @binding(4) var<storage, read> sph_force_input: array<vec4<f32>>;
 
 // --------------------------------------------------------------------------
 // Force computation (inline -- no separate pass needed)
@@ -246,12 +248,18 @@ fn integrate(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let life = p_in.pos.w;
     let mass = p_in.vel.w;
 
-    // Compute all forces inline
+    // Compute inline flow forces
     let force = compute_all_forces(pos, vel, params);
+
+    // Add external forces (attraction/repulsion from forces pass)
+    let ext_force = external_forces[idx].xyz;
+    // Add SPH forces (pressure + viscosity from SPH pass)
+    let sph_f = sph_force_input[idx].xyz;
+    let total_force = force + ext_force + sph_f;
 
     // Symplectic Euler integration
     let dt = params.dt * params.speed;
-    let acceleration = force / max(mass, 0.001);
+    let acceleration = total_force / max(mass, 0.001);
 
     // Update velocity first (symplectic Euler)
     vel = vel + acceleration * dt;
