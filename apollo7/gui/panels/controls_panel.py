@@ -42,9 +42,8 @@ class ControlsPanel(QtWidgets.QWidget):
     def eventFilter(self, obj, event):
         """Block wheel events on sliders so scrolling the panel works."""
         if isinstance(obj, QtWidgets.QSlider) and event.type() == QtCore.QEvent.Wheel:
-            if not obj.hasFocus():
-                event.ignore()
-                return True
+            event.ignore()
+            return True
         return super().eventFilter(obj, event)
 
     def _build_ui(self):
@@ -163,7 +162,6 @@ class ControlsPanel(QtWidgets.QWidget):
         Uses 100 ticks for the range for smooth control.
         """
         slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        slider.setFocusPolicy(QtCore.Qt.StrongFocus)
         slider.installEventFilter(self)
         slider.setMinimum(0)
         slider.setMaximum(100)
