@@ -88,3 +88,10 @@ SSAO_INTENSITY_RANGE: tuple[float, float] = (0.0, 2.0)
 # -- Post-processing: Motion Trails --
 TRAIL_LENGTH_DEFAULT: float = 0.5
 TRAIL_LENGTH_RANGE: tuple[float, float] = (0.0, 1.0)
+
+# -- Project file --
+PROJECT_FILE_EXTENSION: str = ".apollo7"
+DEFAULT_PRESETS_DIR: str = "~/.apollo7/presets/"
+
+# -- Export resolution presets --
+EXPORT_MAX_RESOLUTION: int = 15360
