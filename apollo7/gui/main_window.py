@@ -9,6 +9,12 @@ Layout:
     Right: Vertical splitter
       - Top: Controls panel
       - Bottom: Library panel
+
+Wiring:
+  - Library: load photos -> ingestion worker -> thumbnails in library panel
+  - Extract: button triggers ExtractionWorker for all loaded photos
+  - Progressive build: each photo_complete adds point cloud to viewport
+  - Controls: sliders update viewport in real-time, mode toggles regenerate
 """
 
 from __future__ import annotations
@@ -20,16 +26,25 @@ from typing import Any
 import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from apollo7.config.settings import MIN_WINDOW_SIZE, WINDOW_SIZE
+from apollo7.config.settings import (
+    DEPTH_EXAGGERATION_DEFAULT,
+    MIN_WINDOW_SIZE,
+    WINDOW_SIZE,
+)
 from apollo7.extraction.base import ExtractionResult
 from apollo7.extraction.cache import FeatureCache
 from apollo7.extraction.color import ColorExtractor
+from apollo7.extraction.depth import DepthExtractor
 from apollo7.extraction.edges import EdgeExtractor
+from apollo7.extraction.pipeline import ExtractionPipeline
 from apollo7.gui.panels.controls_panel import ControlsPanel
 from apollo7.gui.panels.feature_strip import FeatureStripPanel
 from apollo7.gui.panels.library_panel import LibraryPanel
 from apollo7.gui.widgets.progress_bar import ExtractionProgressBar
 from apollo7.gui.widgets.viewport_widget import ViewportWidget
+from apollo7.ingestion.loader import load_image
+from apollo7.pointcloud.generator import PointCloudGenerator
+from apollo7.workers.extraction_worker import ExtractionWorker
 from apollo7.workers.ingestion_worker import IngestionWorker
 
 logger = logging.getLogger(__name__)
@@ -47,49 +62,6 @@ def _make_placeholder(name: str) -> QtWidgets.QWidget:
     return widget
 
 
-class _ExtractionWorker(QtCore.QRunnable):
-    """Runs feature extraction in a background thread."""
-
-    class Signals(QtCore.QObject):
-        finished = QtCore.Signal(str, dict)  # photo_path, results dict
-        error = QtCore.Signal(str, str)  # photo_path, error message
-
-    def __init__(
-        self,
-        photo_path: str,
-        image: np.ndarray,
-        cache: FeatureCache,
-    ) -> None:
-        super().__init__()
-        self.signals = self.Signals()
-        self._photo_path = photo_path
-        self._image = image
-        self._cache = cache
-        self.setAutoDelete(True)
-
-    def run(self) -> None:
-        """Extract color and edge features, respecting cache."""
-        try:
-            results: dict[str, ExtractionResult] = {}
-            extractors = [ColorExtractor(), EdgeExtractor()]
-
-            for extractor in extractors:
-                cached = self._cache.get(self._photo_path, extractor.name)
-                if cached is not None:
-                    results[extractor.name] = cached
-                    logger.debug(
-                        "Cache hit: %s for %s", extractor.name, self._photo_path
-                    )
-                else:
-                    result = extractor.extract(self._image)
-                    self._cache.store(self._photo_path, extractor.name, result)
-                    results[extractor.name] = result
-
-            self.signals.finished.emit(self._photo_path, results)
-        except Exception as exc:
-            self.signals.error.emit(self._photo_path, str(exc))
-
-
 class MainWindow(QtWidgets.QMainWindow):
     """Primary application window for Apollo 7."""
 
@@ -104,6 +76,23 @@ class MainWindow(QtWidgets.QMainWindow):
         # Shared state
         self._cache = FeatureCache()
         self._thread_pool = QtCore.QThreadPool.globalInstance()
+
+        # Photo data storage: {path: image_array}
+        self._loaded_images: dict[str, np.ndarray] = {}
+        # Loaded photo paths in order
+        self._photo_paths: list[str] = []
+        # Extraction results per photo: {path: {extractor_name: ExtractionResult}}
+        self._extraction_results: dict[str, dict[str, ExtractionResult]] = {}
+        # Currently selected photo
+        self._selected_photo: str | None = None
+        # Current depth exaggeration value
+        self._depth_exaggeration: float = DEPTH_EXAGGERATION_DEFAULT
+
+        # Extraction pipeline and point cloud generator
+        self._pipeline = ExtractionPipeline(
+            [ColorExtractor(), EdgeExtractor(), DepthExtractor()]
+        )
+        self._generator = PointCloudGenerator()
 
         # Central widget
         central = QtWidgets.QWidget()
@@ -142,9 +131,47 @@ class MainWindow(QtWidgets.QMainWindow):
 
         main_layout.addWidget(h_splitter)
 
-        # --- Connect signals ---
+        # --- Connect all signals ---
+        self._connect_signals()
+
+    def _connect_signals(self) -> None:
+        """Wire all inter-component signals."""
+        # Library: load buttons
         self.library_panel.btn_load_photo.clicked.connect(self._on_load_photo)
         self.library_panel.btn_load_folder.clicked.connect(self._on_load_folder)
+
+        # Library: photo selection -> show features
+        self.library_panel.photo_selected.connect(self._on_photo_selected)
+
+        # Controls: extract button
+        self.controls_panel.btn_extract.clicked.connect(self._on_extract)
+        self.controls_panel.btn_reextract.clicked.connect(self._on_reextract)
+
+        # Controls: sliders -> viewport
+        self.controls_panel.point_size_changed.connect(
+            lambda v: self.viewport.update_point_material(point_size=v)
+        )
+        self.controls_panel.opacity_changed.connect(
+            lambda v: self.viewport.update_point_material(opacity=v)
+        )
+        self.controls_panel.depth_exaggeration_changed.connect(
+            self._on_depth_exaggeration_changed
+        )
+
+        # Controls: layout mode toggle -> viewport
+        self.controls_panel.layout_mode_changed.connect(
+            self.viewport.set_layout_mode
+        )
+
+        # Controls: multi-photo mode toggle -> viewport
+        self.controls_panel.multi_photo_mode_changed.connect(
+            self.viewport.set_multi_photo_mode
+        )
+
+        # Viewport: layout change requested -> regenerate all clouds
+        self.viewport.layout_change_requested.connect(
+            self._regenerate_all_clouds
+        )
 
     # ------------------------------------------------------------------
     # Ingestion (load photo / folder)
@@ -190,7 +217,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Handle a single photo loaded by the worker.
 
         Convert PIL thumbnail to QPixmap in the main thread (Qt requirement)
-        and add to the library panel.
+        and add to the library panel. Also load the full image for extraction.
         """
         buf = io.BytesIO()
         pil_thumbnail.save(buf, format="PNG")  # type: ignore[union-attr]
@@ -199,6 +226,19 @@ class MainWindow(QtWidgets.QMainWindow):
         pixmap.loadFromData(buf.read(), "PNG")
 
         self.library_panel.add_photo(path, pixmap, metadata)
+
+        # Load full image into memory for extraction
+        try:
+            image = load_image(path)
+            self._loaded_images[path] = image
+            if path not in self._photo_paths:
+                self._photo_paths.append(path)
+        except Exception as exc:
+            logger.warning("Failed to load full image %s: %s", path, exc)
+
+        # Enable extract button once we have at least one photo
+        if self._loaded_images:
+            self.controls_panel.btn_extract.setEnabled(True)
 
     def _on_ingestion_progress(self, current: int, total: int) -> None:
         """Update progress bar during ingestion."""
@@ -209,28 +249,193 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_bar.finish()
 
     # ------------------------------------------------------------------
-    # Extraction API (called by library panel photo_selected signal)
+    # Photo selection
+    # ------------------------------------------------------------------
+
+    def _on_photo_selected(self, photo_path: str) -> None:
+        """Handle photo thumbnail click in library panel."""
+        self._selected_photo = photo_path
+        self.controls_panel.btn_reextract.setEnabled(True)
+
+        # Show cached extraction results in feature strip if available
+        results = self._extraction_results.get(photo_path)
+        if results:
+            self.feature_strip.update_features(photo_path, results)
+        else:
+            self.feature_strip.clear()
+
+    # ------------------------------------------------------------------
+    # Extraction
+    # ------------------------------------------------------------------
+
+    def _on_extract(self) -> None:
+        """Launch background extraction for all loaded photos."""
+        if not self._loaded_images:
+            return
+
+        paths = list(self._photo_paths)
+        total = len(paths)
+        self.progress_bar.start(total)
+
+        worker = ExtractionWorker(
+            photo_paths=paths,
+            images=self._loaded_images,
+            pipeline=self._pipeline,
+            generator=self._generator,
+            cache=self._cache,
+            mode=self.viewport.layout_mode,
+            depth_exaggeration=self._depth_exaggeration,
+            multi_photo_mode=self.viewport.multi_photo_mode,
+        )
+        worker.signals.photo_complete.connect(self._on_extraction_photo_complete)
+        worker.signals.progress.connect(self._on_extraction_progress)
+        worker.signals.finished.connect(self._on_extraction_finished)
+        worker.signals.error.connect(self._on_extraction_error)
+
+        self._thread_pool.start(worker)
+
+    def _on_reextract(self) -> None:
+        """Re-extract selected photo, clearing cache first."""
+        if not self._selected_photo:
+            return
+        path = self._selected_photo
+        if path not in self._loaded_images:
+            return
+
+        # Clear cache for this photo
+        self._cache.invalidate(path)
+        # Remove existing cloud
+        self.viewport.remove_photo_cloud(path)
+        # Clear stored results
+        self._extraction_results.pop(path, None)
+
+        # Run extraction for just this photo
+        self.progress_bar.start(1)
+        worker = ExtractionWorker(
+            photo_paths=[path],
+            images=self._loaded_images,
+            pipeline=self._pipeline,
+            generator=self._generator,
+            cache=self._cache,
+            mode=self.viewport.layout_mode,
+            depth_exaggeration=self._depth_exaggeration,
+            multi_photo_mode=self.viewport.multi_photo_mode,
+        )
+        worker.signals.photo_complete.connect(self._on_extraction_photo_complete)
+        worker.signals.progress.connect(self._on_extraction_progress)
+        worker.signals.finished.connect(self._on_extraction_finished)
+        worker.signals.error.connect(self._on_extraction_error)
+
+        self._thread_pool.start(worker)
+
+    def _on_extraction_photo_complete(
+        self, photo_path: str, features: dict, cloud_data: object
+    ) -> None:
+        """Handle single photo extraction completion.
+
+        - Add point cloud to viewport (progressive build)
+        - Update feature strip if this is the selected photo
+        - Store results for later re-generation
+        """
+        # Store extraction results
+        self._extraction_results[photo_path] = features
+
+        # Add point cloud to viewport (main thread -- pygfx scene modification)
+        if cloud_data is not None:
+            positions, colors, sizes = cloud_data
+            layer_index = self._photo_paths.index(photo_path) if photo_path in self._photo_paths else 0
+            self.viewport.add_photo_cloud(
+                photo_id=photo_path,
+                positions=positions,
+                colors=colors,
+                sizes=sizes,
+                layer_index=layer_index,
+            )
+
+        # Update feature strip if this photo is selected (or auto-select first)
+        if self._selected_photo == photo_path or self._selected_photo is None:
+            self._selected_photo = photo_path
+            self.feature_strip.update_features(photo_path, features)
+
+        # Update library panel status
+        logger.info("Extraction complete for %s", photo_path)
+
+    def _on_extraction_progress(self, current: int, total: int) -> None:
+        """Update progress bar during extraction."""
+        self.progress_bar.update(current, total)
+
+    def _on_extraction_finished(self) -> None:
+        """Finalize extraction batch."""
+        self.progress_bar.finish()
+        # Final auto-frame to show entire sculpture
+        self.viewport.auto_frame()
+        logger.info("All extractions complete")
+
+    def _on_extraction_error(self, photo_path: str, error_msg: str) -> None:
+        """Log extraction errors."""
+        logger.error("Extraction failed for %s: %s", photo_path, error_msg)
+
+    # ------------------------------------------------------------------
+    # Layout regeneration
+    # ------------------------------------------------------------------
+
+    def _on_depth_exaggeration_changed(self, value: float) -> None:
+        """Handle depth exaggeration slider change -- triggers regeneration."""
+        self._depth_exaggeration = value
+        self._regenerate_all_clouds()
+
+    def _regenerate_all_clouds(self) -> None:
+        """Regenerate all point clouds from stored extraction results.
+
+        Called when layout mode, multi-photo mode, or depth exaggeration changes.
+        """
+        if not self._extraction_results:
+            return
+
+        mode = self.viewport.layout_mode
+        multi_mode = self.viewport.multi_photo_mode
+
+        for i, path in enumerate(self._photo_paths):
+            features = self._extraction_results.get(path)
+            image = self._loaded_images.get(path)
+            if features is None or image is None:
+                continue
+
+            kwargs: dict[str, Any] = {}
+            if mode == "depth_projected":
+                kwargs["depth_exaggeration"] = self._depth_exaggeration
+                if multi_mode == "stacked":
+                    kwargs["layer_offset"] = i * (self._depth_exaggeration + 2.0)
+
+            try:
+                positions, colors, sizes = self._generator.generate(
+                    image, features, mode=mode, **kwargs
+                )
+                self.viewport.add_photo_cloud(
+                    photo_id=path,
+                    positions=positions,
+                    colors=colors,
+                    sizes=sizes,
+                    layer_index=i,
+                )
+            except Exception as exc:
+                logger.warning("Cloud regeneration failed for %s: %s", path, exc)
+
+        self.viewport.auto_frame()
+
+    # ------------------------------------------------------------------
+    # Legacy extraction API (kept for backward compatibility)
     # ------------------------------------------------------------------
 
     def run_extraction(self, photo_path: str, image: np.ndarray) -> None:
-        """Launch background extraction for a photo and update the feature strip.
+        """Launch background extraction for a single photo (legacy API).
 
         Args:
             photo_path: Filesystem path to the photo (used as cache key).
             image: RGB float32 [0-1] numpy array.
         """
-        worker = _ExtractionWorker(photo_path, image, self._cache)
-        worker.signals.finished.connect(self._on_extraction_finished)
-        worker.signals.error.connect(self._on_extraction_error)
-        self._thread_pool.start(worker)
+        self._loaded_images[photo_path] = image
+        if photo_path not in self._photo_paths:
+            self._photo_paths.append(photo_path)
 
-    def _on_extraction_finished(
-        self, photo_path: str, results: dict[str, Any]
-    ) -> None:
-        """Update feature strip with extraction results."""
-        self.feature_strip.update_features(photo_path, results)
-        logger.info("Extraction complete for %s", photo_path)
-
-    def _on_extraction_error(self, photo_path: str, error_msg: str) -> None:
-        """Log extraction errors."""
-        logger.error("Extraction failed for %s: %s", photo_path, error_msg)
+        self._on_extract()

@@ -6,9 +6,12 @@ All values are module-level constants that serve as defaults.
 # -- Point rendering defaults --
 POINT_SIZE_DEFAULT: float = 2.0
 POINT_SIZE_RANGE: tuple[float, float] = (0.5, 10.0)
+OPACITY_DEFAULT: float = 1.0
+OPACITY_RANGE: tuple[float, float] = (0.0, 1.0)
 
 # -- Depth projection --
 DEPTH_EXAGGERATION_DEFAULT: float = 4.0
+DEPTH_EXAGGERATION_RANGE: tuple[float, float] = (1.0, 10.0)
 
 # -- Background colors (dark gradient) --
 BG_COLOR_TOP: str = "#1a1a1a"
