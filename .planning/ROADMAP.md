@@ -28,7 +28,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User sees a 3D point cloud generated from extracted features, rendered in a real-time viewport with orbit, zoom, and pan at 30+ FPS
   4. Point cloud rendering supports configurable point size, color mapping, opacity, and additive blending
   5. The application runs on Windows 11 with AMD RX 9060 XT (no CUDA), UI stays responsive during long extraction runs
-**Plans:** 2/5 plans executed
+**Plans:** 3/5 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md — Project setup, GUI skeleton, and embedded pygfx 3D viewport with test points
@@ -78,6 +78,6 @@ Phases execute in numeric order: 1 -> 2 -> 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Pipeline Foundation | 2/5 | In Progress|  |
+| 1. Pipeline Foundation | 3/5 | In Progress|  |
 | 2. Creative Sculpting | 0/3 | Not started | - |
 | 3. Discovery and Intelligence | 0/2 | Not started | - |

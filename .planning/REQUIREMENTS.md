@@ -9,9 +9,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Ingestion
 
-- [ ] **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) into the pipeline
-- [ ] **INGEST-02**: User can batch-ingest an entire folder of photos with progress feedback
-- [ ] **INGEST-03**: User can view thumbnails and metadata of ingested photos in a library panel
+- [x] **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) into the pipeline
+- [x] **INGEST-02**: User can batch-ingest an entire folder of photos with progress feedback
+- [x] **INGEST-03**: User can view thumbnails and metadata of ingested photos in a library panel
 
 ### Feature Extraction
 
@@ -107,9 +107,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGEST-01 | Phase 1 | Pending |
-| INGEST-02 | Phase 1 | Pending |
-| INGEST-03 | Phase 1 | Pending |
+| INGEST-01 | Phase 1 | Complete |
+| INGEST-02 | Phase 1 | Complete |
+| INGEST-03 | Phase 1 | Complete |
 | EXTRACT-01 | Phase 1 | Complete |
 | EXTRACT-02 | Phase 1 | Complete |
 | EXTRACT-03 | Phase 1 | Pending |

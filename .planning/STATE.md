@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md
-last_updated: "2026-03-14T15:09:26Z"
+stopped_at: Completed 01-02-PLAN.md
+last_updated: "2026-03-14T15:12:47.496Z"
 last_activity: 2026-03-14 -- Plan 01-03 complete (feature extraction pipeline)
 progress:
   total_phases: 3
@@ -66,6 +66,9 @@ Recent decisions affecting current work:
 - [01-03]: extcolors tolerance=32, limit=12 for dominant color extraction
 - [01-03]: Canny thresholds (50/150) configurable via EdgeExtractor constructor
 - [01-03]: Cache keyed by (photo_path, extractor_name) tuple
+- [01-02]: PIL-to-QPixmap via in-memory PNG buffer in main thread (Qt pixmap creation requirement)
+- [01-02]: Header-based format detection via Pillow, not file extension
+- [01-02]: WorkerSignals QObject pattern for QRunnable signal emission
 
 ### Pending Todos
 
@@ -78,6 +81,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-14T15:09:26Z
-Stopped at: Completed 01-03-PLAN.md
-Resume file: .planning/phases/01-pipeline-foundation/01-03-SUMMARY.md
+Last session: 2026-03-14T15:12:47.494Z
+Stopped at: Completed 01-02-PLAN.md
+Resume file: None
