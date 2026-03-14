@@ -70,11 +70,16 @@ Plans:
   4. User can route extracted features to visual parameters through a mapping editor, and smoothly interpolate between saved presets
   5. Optional Claude API integration enriches photo annotation and suggests creative mappings, but all core functionality works fully offline
 
-**Plans**: TBD
+**Plans:** 7 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md — CLIP semantic extraction with mood/object tags and feature viewer integration
+- [ ] 03-02-PLAN.md — Parameter animation (LFO/noise/envelope) and preset crossfade interpolation
+- [ ] 03-03-PLAN.md — Feature-to-visual mapping editor (node-wire patch bay) and evaluation engine
+- [ ] 03-04-PLAN.md — Collection analysis (DBSCAN/UMAP), embedding cloud, and cluster force attractors
+- [ ] 03-05-PLAN.md — Discovery mode with random walk, dimensional sliders, and visual history strip
+- [ ] 03-06-PLAN.md — Claude API enrichment service with offline-first guarantee
+- [ ] 03-07-PLAN.md — End-to-end integration wiring and verification checkpoint
 
 ## Progress
 
@@ -85,4 +90,4 @@ Phases execute in numeric order: 1 -> 2 -> 3
 |-------|----------------|--------|-----------|
 | 1. Pipeline Foundation | 5/5 | Complete    | 2026-03-14 |
 | 2. Creative Sculpting | 8/8 | Complete   | 2026-03-14 |
-| 3. Discovery and Intelligence | 0/2 | Not started | - |
+| 3. Discovery and Intelligence | 0/7 | Not started | - |
