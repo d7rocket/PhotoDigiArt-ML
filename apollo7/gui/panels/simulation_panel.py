@@ -96,12 +96,7 @@ class SimulationPanel(QtWidgets.QWidget):
         self._connect_signals()
 
     def _build_ui(self):
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
-
-        container = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(container)
+        layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
@@ -175,12 +170,6 @@ class SimulationPanel(QtWidgets.QWidget):
         layout.addWidget(self.btn_reset_all)
 
         layout.addStretch(1)
-
-        scroll.setWidget(container)
-
-        outer_layout = QtWidgets.QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.addWidget(scroll)
 
     def _add_slider(self, layout, spec: tuple):
         """Add a labeled slider for a parameter.
