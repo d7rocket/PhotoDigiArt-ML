@@ -30,8 +30,8 @@ Requirements for initial release. Each maps to roadmap phases.
 ### 3D Rendering & Visualization
 
 - [ ] **RENDER-01**: Pipeline generates 3D point clouds from extracted features (geometry, color, depth)
-- [ ] **RENDER-02**: Real-time 3D viewport with orbit, zoom, pan at 30+ FPS via Vulkan/wgpu
-- [ ] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
+- [x] **RENDER-02**: Real-time 3D viewport with orbit, zoom, pan at 30+ FPS via Vulkan/wgpu
+- [x] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
 - [ ] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
 - [ ] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
 - [ ] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
@@ -63,8 +63,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Desktop Application
 
-- [ ] **APP-01**: Desktop GUI built with PySide6 -- professional layout with docking panels
-- [ ] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) -- no CUDA dependencies
+- [x] **APP-01**: Desktop GUI built with PySide6 -- professional layout with docking panels
+- [x] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) -- no CUDA dependencies
 - [ ] **APP-03**: Full GPU/CPU/RAM utilization for generation (hours-long runs acceptable)
 - [ ] **APP-04**: UI remains responsive during long generation runs (background compute, foreground interaction)
 
@@ -119,8 +119,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | COLL-02 | Phase 3 | Pending |
 | COLL-03 | Phase 3 | Pending |
 | RENDER-01 | Phase 1 | Pending |
-| RENDER-02 | Phase 1 | Pending |
-| RENDER-03 | Phase 1 | Pending |
+| RENDER-02 | Phase 1 | Complete |
+| RENDER-03 | Phase 1 | Complete |
 | RENDER-04 | Phase 2 | Pending |
 | RENDER-05 | Phase 2 | Pending |
 | RENDER-06 | Phase 2 | Pending |
@@ -140,8 +140,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DISC-02 | Phase 3 | Pending |
 | DISC-03 | Phase 3 | Pending |
 | DISC-04 | Phase 3 | Pending |
-| APP-01 | Phase 1 | Pending |
-| APP-02 | Phase 1 | Pending |
+| APP-01 | Phase 1 | Complete |
+| APP-02 | Phase 1 | Complete |
 | APP-03 | Phase 1 | Pending |
 | APP-04 | Phase 1 | Pending |
 

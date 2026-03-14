@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-14T14:18:30.064Z"
-last_activity: 2026-03-14 -- Roadmap created (3 phases, 37 requirements mapped)
+status: executing
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-14T15:04:00.000Z"
+last_activity: 2026-03-14 -- Plan 01-01 complete (project setup, GUI, 3D viewport)
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 5
+  completed_plans: 1
+  percent: 20
 ---
 
 # Project State
@@ -26,28 +26,28 @@ See: .planning/PROJECT.md (updated 2026-03-14)
 ## Current Position
 
 Phase: 1 of 3 (Pipeline Foundation)
-Plan: 0 of 2 in current phase
-Status: Ready to plan
-Last activity: 2026-03-14 -- Roadmap created (3 phases, 37 requirements mapped)
+Plan: 1 of 5 in current phase (complete)
+Status: Executing phase 1
+Last activity: 2026-03-14 -- Plan 01-01 complete (project setup, GUI, 3D viewport)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: -
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: ~5 min
+- Total execution time: ~0.1 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 1 - Pipeline Foundation | 1/5 | ~5 min | ~5 min |
 
 **Recent Trend:**
-- Last 5 plans: -
-- Trend: -
+- Last 5 plans: 01-01 (~5 min)
+- Trend: Starting
 
 *Updated after each plan completion*
 
@@ -61,6 +61,8 @@ Recent decisions affecting current work:
 - [Roadmap]: 3-phase coarse structure -- Foundation, Creative Sculpting, Discovery
 - [Roadmap]: Semantic extraction (CLIP/BLIP) deferred to Phase 3 with discovery features
 - [Roadmap]: Feature-to-visual mapping editor deferred to Phase 3 (differentiator, not core tool)
+- [01-01]: Alpha falloff workaround for blending (BLEND_MODE_AVAILABLE=False) -- pygfx lacks blend_mode on PointsGaussianBlobMaterial
+- [01-01]: rendercanvas.qt.QRenderWidget used for pygfx-in-Qt embedding
 
 ### Pending Todos
 
@@ -69,10 +71,10 @@ None yet.
 ### Blockers/Concerns
 
 - [Research]: ROCm on Windows is functional but young -- Phase 1 must validate GPU paths early
-- [Research]: PySide6 + pygfx/wgpu integration has sparse real-world examples -- prove in Phase 1
+- [Resolved]: PySide6 + pygfx/wgpu integration proven working in 01-01 via QRenderWidget
 
 ## Session Continuity
 
-Last session: 2026-03-14T14:18:30.062Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-pipeline-foundation/01-CONTEXT.md
+Last session: 2026-03-14T15:04:00.000Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: .planning/phases/01-pipeline-foundation/01-01-SUMMARY.md
