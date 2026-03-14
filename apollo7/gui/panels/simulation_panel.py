@@ -95,6 +95,14 @@ class SimulationPanel(QtWidgets.QWidget):
         self._build_ui()
         self._connect_signals()
 
+    def eventFilter(self, obj, event):
+        """Block wheel events on sliders so scrolling the panel works."""
+        if isinstance(obj, QtWidgets.QSlider) and event.type() == QtCore.QEvent.Wheel:
+            if not obj.hasFocus():
+                event.ignore()
+                return True
+        return super().eventFilter(obj, event)
+
     def _build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
@@ -182,6 +190,8 @@ class SimulationPanel(QtWidgets.QWidget):
         layout.addWidget(lbl)
 
         slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        slider.setFocusPolicy(QtCore.Qt.StrongFocus)
+        slider.installEventFilter(self)
         slider.setMinimum(0)
         slider.setMaximum(100)
         # Map default to tick
