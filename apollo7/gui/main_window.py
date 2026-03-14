@@ -48,20 +48,25 @@ from apollo7.config.settings import (
     BLOOM_STRENGTH_DEFAULT,
     DOF_APERTURE_DEFAULT,
     DOF_FOCAL_DEFAULT,
+    PROJECT_FILE_EXTENSION,
     SSAO_INTENSITY_DEFAULT,
     SSAO_RADIUS_DEFAULT,
     TRAIL_LENGTH_DEFAULT,
 )
 from apollo7.gui.panels.controls_panel import ControlsPanel
+from apollo7.gui.panels.export_panel import ExportPanel
 from apollo7.gui.panels.feature_strip import FeatureStripPanel
 from apollo7.gui.panels.feature_viewer import FeatureViewerPanel
 from apollo7.gui.panels.library_panel import LibraryPanel
 from apollo7.gui.panels.postfx_panel import PostFXPanel
+from apollo7.gui.panels.preset_panel import PresetPanel
 from apollo7.gui.panels.simulation_panel import SimulationPanel
 from apollo7.gui.widgets.progress_bar import ExtractionProgressBar
 from apollo7.gui.widgets.viewport_widget import ViewportWidget
 from apollo7.ingestion.loader import load_image
 from apollo7.pointcloud.generator import PointCloudGenerator
+from apollo7.project.export import export_image
+from apollo7.project.save_load import ProjectState, save_project, load_project
 from apollo7.simulation.parameters import SimulationParams
 from apollo7.workers.extraction_worker import ExtractionWorker
 from apollo7.workers.ingestion_worker import IngestionWorker
@@ -106,6 +111,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._selected_photo: str | None = None
         # Current depth exaggeration value
         self._depth_exaggeration: float = DEPTH_EXAGGERATION_DEFAULT
+
+        # Project file path (None = unsaved new project)
+        self._project_path: str | None = None
 
         # Undo/redo stack
         self._undo_stack = QUndoStack(self)
@@ -153,17 +161,21 @@ class MainWindow(QtWidgets.QMainWindow):
         left_splitter.setSizes([850, 150])
         left_splitter.setCollapsible(1, True)
 
-        # Right side: controls + simulation + postfx + library (real panels)
+        # Right side: controls + simulation + postfx + presets + export + library
         right_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         self.controls_panel = ControlsPanel()
         self.simulation_panel = SimulationPanel()
         self.postfx_panel = PostFXPanel()
+        self.preset_panel = PresetPanel()
+        self.export_panel = ExportPanel()
         self.library_panel = LibraryPanel()
         right_splitter.addWidget(self.controls_panel)
         right_splitter.addWidget(self.simulation_panel)
         right_splitter.addWidget(self.postfx_panel)
+        right_splitter.addWidget(self.preset_panel)
+        right_splitter.addWidget(self.export_panel)
         right_splitter.addWidget(self.library_panel)
-        right_splitter.setSizes([250, 300, 250, 200])
+        right_splitter.setSizes([220, 260, 220, 180, 160, 160])
 
         h_splitter.addWidget(left_splitter)
         h_splitter.addWidget(right_splitter)
@@ -264,17 +276,34 @@ class MainWindow(QtWidgets.QMainWindow):
         space_action.triggered.connect(self._on_space_pressed)
         self.addAction(space_action)
 
-        # Ctrl+S: save project (placeholder)
+        # Ctrl+S: save project
         save_action = QtGui.QAction("Save", self)
         save_action.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_S))
-        save_action.triggered.connect(lambda: logger.info("Save: placeholder"))
+        save_action.triggered.connect(self._on_save_project)
         self.addAction(save_action)
 
-        # Ctrl+E: export image (placeholder)
+        # Ctrl+O: open project
+        open_action = QtGui.QAction("Open", self)
+        open_action.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_O))
+        open_action.triggered.connect(self._on_open_project)
+        self.addAction(open_action)
+
+        # Ctrl+E: export image
         export_action = QtGui.QAction("Export", self)
         export_action.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_E))
-        export_action.triggered.connect(lambda: logger.info("Export: placeholder"))
+        export_action.triggered.connect(
+            lambda: self.export_panel._on_export_clicked()
+        )
         self.addAction(export_action)
+
+        # --- Export panel signals ---
+        self.export_panel.export_requested.connect(self._on_export_image)
+
+        # --- Preset panel signals ---
+        self.preset_panel.preset_applied.connect(self._on_preset_applied)
+        self.preset_panel.save_current_requested.connect(
+            self._on_save_current_preset
+        )
 
     # ------------------------------------------------------------------
     # Ingestion (load photo / folder)
@@ -708,6 +737,237 @@ class MainWindow(QtWidgets.QMainWindow):
             self.simulation_panel.btn_pause.setText(
                 "Resume" if is_paused else "Pause"
             )
+
+    # ------------------------------------------------------------------
+    # Project save/load
+    # ------------------------------------------------------------------
+
+    def _collect_project_state(self) -> ProjectState:
+        """Gather all current state into a ProjectState for saving."""
+        # Simulation parameters
+        sim_params: dict[str, Any] = {}
+        if self.viewport._sim_engine:
+            params = self.viewport._sim_engine.params
+            from dataclasses import fields as dc_fields
+            for f in dc_fields(params):
+                if not f.name.startswith("_") and f.name != "UNIFORM_SIZE":
+                    val = getattr(params, f.name)
+                    if isinstance(val, tuple):
+                        val = list(val)
+                    sim_params[f.name] = val
+
+        # PostFX parameters
+        postfx_params: dict[str, Any] = {}
+        for name in self._POSTFX_MERGE_IDS:
+            postfx_params[name] = self._prev_values.get(name, 0.0)
+
+        # Rendering parameters
+        rendering_params = {
+            "point_size": self._prev_values.get("point_size", POINT_SIZE_DEFAULT),
+            "opacity": self._prev_values.get("opacity", OPACITY_DEFAULT),
+            "depth_exaggeration": self._depth_exaggeration,
+        }
+
+        # Camera state
+        camera_state: dict[str, Any] = {}
+        try:
+            cam = self.viewport._camera
+            pos = cam.world.position
+            camera_state["position"] = [float(pos[0]), float(pos[1]), float(pos[2])]
+            rot = cam.world.rotation
+            camera_state["rotation"] = [float(rot[0]), float(rot[1]), float(rot[2]), float(rot[3])]
+        except Exception:
+            pass
+
+        # Point cloud snapshot (positions + colors from first cloud)
+        snapshot = None
+        if self.viewport._point_objects:
+            try:
+                pts = self.viewport._point_objects[0]
+                geo = pts.geometry
+                if geo.positions is not None and geo.colors is not None:
+                    snapshot = {
+                        "positions": geo.positions.data.tolist(),
+                        "colors": geo.colors.data.tolist(),
+                    }
+            except Exception:
+                pass
+
+        return ProjectState(
+            photo_paths=list(self._photo_paths),
+            sim_params=sim_params,
+            postfx_params=postfx_params,
+            rendering_params=rendering_params,
+            camera_state=camera_state,
+            layout_mode=self.viewport.layout_mode,
+            multi_photo_mode=self.viewport.multi_photo_mode,
+            depth_exaggeration=self._depth_exaggeration,
+            point_cloud_snapshot=snapshot,
+        )
+
+    def _on_save_project(self) -> None:
+        """Save the current project to file."""
+        if self._project_path:
+            # Save to existing path
+            state = self._collect_project_state()
+            save_project(state, self._project_path)
+            logger.info("Project saved to %s", self._project_path)
+        else:
+            # New project -- open save dialog
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(
+                self, "Save Project", "",
+                f"Apollo 7 Project (*{PROJECT_FILE_EXTENSION})",
+            )
+            if not path:
+                return
+            if not path.endswith(PROJECT_FILE_EXTENSION):
+                path += PROJECT_FILE_EXTENSION
+            self._project_path = path
+            state = self._collect_project_state()
+            save_project(state, path)
+            self.setWindowTitle(f"Apollo 7 - {path}")
+
+    def _on_open_project(self) -> None:
+        """Open a project file and restore all state."""
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self, "Open Project", "",
+            f"Apollo 7 Project (*{PROJECT_FILE_EXTENSION})",
+        )
+        if not path:
+            return
+
+        try:
+            state = load_project(path)
+        except Exception as exc:
+            logger.error("Failed to load project: %s", exc)
+            QtWidgets.QMessageBox.warning(
+                self, "Load Error", f"Failed to load project:\n{exc}"
+            )
+            return
+
+        self._project_path = path
+        self.setWindowTitle(f"Apollo 7 - {path}")
+
+        # Restore photo paths (load images that still exist)
+        self._photo_paths.clear()
+        self._loaded_images.clear()
+        for p in state.photo_paths:
+            import os
+            if os.path.exists(p):
+                try:
+                    image = load_image(p)
+                    self._loaded_images[p] = image
+                    self._photo_paths.append(p)
+                except Exception as exc:
+                    logger.warning("Failed to load photo %s: %s", p, exc)
+            else:
+                logger.warning("Photo not found, skipping: %s", p)
+                self._photo_paths.append(p)  # Keep reference
+
+        # Restore rendering params
+        rp = state.rendering_params
+        if "point_size" in rp:
+            self.viewport.update_point_material(point_size=rp["point_size"])
+            self._prev_values["point_size"] = rp["point_size"]
+        if "opacity" in rp:
+            self.viewport.update_point_material(opacity=rp["opacity"])
+            self._prev_values["opacity"] = rp["opacity"]
+        if "depth_exaggeration" in rp:
+            self._depth_exaggeration = rp["depth_exaggeration"]
+            self._prev_values["depth_exaggeration"] = rp["depth_exaggeration"]
+
+        # Restore layout mode
+        if state.layout_mode != self.viewport.layout_mode:
+            self.viewport._layout_mode = state.layout_mode
+
+        # Restore point cloud from snapshot if available
+        if state.point_cloud_snapshot:
+            try:
+                positions = np.array(
+                    state.point_cloud_snapshot["positions"], dtype=np.float32
+                )
+                colors = np.array(
+                    state.point_cloud_snapshot["colors"], dtype=np.float32
+                )
+                sizes = np.full(len(positions), POINT_SIZE_DEFAULT, dtype=np.float32)
+                self.viewport.add_photo_cloud(
+                    photo_id="__snapshot__",
+                    positions=positions,
+                    colors=colors,
+                    sizes=sizes,
+                )
+            except Exception as exc:
+                logger.warning("Failed to restore point cloud snapshot: %s", exc)
+
+        logger.info("Project loaded from %s", path)
+
+    # ------------------------------------------------------------------
+    # Export
+    # ------------------------------------------------------------------
+
+    def _on_export_image(
+        self, width: int, height: int, transparent: bool, output_path: str
+    ) -> None:
+        """Handle export request from ExportPanel."""
+        try:
+            export_image(
+                scene=self.viewport._scene,
+                camera=self.viewport._camera,
+                width=width,
+                height=height,
+                output_path=output_path,
+                transparent=transparent,
+            )
+            logger.info("Export complete: %s (%dx%d)", output_path, width, height)
+        except Exception as exc:
+            logger.error("Export failed: %s", exc)
+            QtWidgets.QMessageBox.warning(
+                self, "Export Error", f"Export failed:\n{exc}"
+            )
+
+    # ------------------------------------------------------------------
+    # Preset integration
+    # ------------------------------------------------------------------
+
+    def _on_preset_applied(
+        self, sim_params: dict, postfx_params: dict
+    ) -> None:
+        """Apply a loaded preset to simulation and post-processing parameters."""
+        # Apply sim params to viewport
+        for name, value in sim_params.items():
+            if name in ("gravity", "wind") and isinstance(value, list):
+                # Compound params: apply via viewport
+                if self.viewport._sim_engine:
+                    self.viewport._sim_engine.update_physics_param(name, tuple(value))
+            else:
+                self.viewport.update_sim_param(name, value)
+
+        # Apply postfx params
+        for name, value in postfx_params.items():
+            self.viewport.update_postfx_param(name, value)
+
+        # Push compound undo for the whole preset application
+        logger.info("Preset applied: %d sim params, %d postfx params",
+                     len(sim_params), len(postfx_params))
+
+    def _on_save_current_preset(self) -> None:
+        """Collect current params and show save preset dialog."""
+        sim_params: dict[str, Any] = {}
+        if self.viewport._sim_engine:
+            params = self.viewport._sim_engine.params
+            from dataclasses import fields as dc_fields
+            for f in dc_fields(params):
+                if not f.name.startswith("_") and f.name != "UNIFORM_SIZE":
+                    val = getattr(params, f.name)
+                    if isinstance(val, tuple):
+                        val = list(val)
+                    sim_params[f.name] = val
+
+        postfx_params: dict[str, Any] = {}
+        for name in self._POSTFX_MERGE_IDS:
+            postfx_params[name] = self._prev_values.get(name, 0.0)
+
+        self.preset_panel.save_preset_dialog(sim_params, postfx_params)
 
     # ------------------------------------------------------------------
     # Legacy extraction API (kept for backward compatibility)

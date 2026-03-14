@@ -387,6 +387,36 @@ def load_theme_qss() -> str:
         font-size: 12px;
     }}
 
+    /* === Export Panel === */
+    QWidget#export-panel {{
+        background-color: {bg_dark};
+    }}
+
+    /* === Preset Panel === */
+    QWidget#preset-panel {{
+        background-color: {bg_dark};
+    }}
+
+    QListWidget {{
+        background-color: {bg_widget};
+        color: {text_primary};
+        border: 1px solid {border};
+        border-radius: 4px;
+        padding: 4px;
+        outline: none;
+    }}
+    QListWidget::item {{
+        padding: 4px 8px;
+        border-radius: 3px;
+    }}
+    QListWidget::item:selected {{
+        background-color: {accent};
+        color: #ffffff;
+    }}
+    QListWidget::item:hover:!selected {{
+        background-color: {bg_panel};
+    }}
+
     /* === Menu Bar === */
     QMenuBar {{
         background-color: {bg_dark};
