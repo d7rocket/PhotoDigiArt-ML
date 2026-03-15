@@ -16,6 +16,7 @@ def generate_depth_projected_cloud(
     depth_map: np.ndarray,
     depth_exaggeration: float = DEPTH_EXAGGERATION_DEFAULT,
     layer_offset: float = 0.0,
+    enriched_colors: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate a depth-projected point cloud from image and depth map.
 
@@ -27,6 +28,8 @@ def generate_depth_projected_cloud(
         depth_map: H x W float32 [0, 1].
         depth_exaggeration: Multiplier for depth-to-Z mapping.
         layer_offset: Z offset for stacked multi-photo mode.
+        enriched_colors: Optional H x W x 4 float32 RGBA with saturation
+            boost. If provided, used instead of raw image pixels.
 
     Returns:
         (positions, colors, sizes) as contiguous float32 arrays:
@@ -48,12 +51,17 @@ def generate_depth_projected_cloud(
     positions = np.stack([x_norm, y_norm, z_coords], axis=-1).reshape(-1, 3)
     positions = np.ascontiguousarray(positions, dtype=np.float32)
 
-    # Colors: add alpha channel
-    colors_rgb = image.reshape(-1, 3).astype(np.float32)
-    alpha = np.ones((colors_rgb.shape[0], 1), dtype=np.float32)
-    colors = np.ascontiguousarray(
-        np.concatenate([colors_rgb, alpha], axis=-1), dtype=np.float32
-    )
+    # Colors: use enriched colors if provided, otherwise raw image pixels
+    if enriched_colors is not None:
+        colors = np.ascontiguousarray(
+            enriched_colors.reshape(-1, 4), dtype=np.float32
+        )
+    else:
+        colors_rgb = image.reshape(-1, 3).astype(np.float32)
+        alpha = np.ones((colors_rgb.shape[0], 1), dtype=np.float32)
+        colors = np.ascontiguousarray(
+            np.concatenate([colors_rgb, alpha], axis=-1), dtype=np.float32
+        )
 
     # Uniform sizes
     sizes = np.full(h * w, POINT_SIZE_DEFAULT, dtype=np.float32)

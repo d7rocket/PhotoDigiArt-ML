@@ -77,23 +77,37 @@ def test_color_buffer_has_vertex_flag():
 class TestEnrichedColors:
     """Tests for extract_enriched_colors with saturation boost (Plan 05-02)."""
 
-    @pytest.mark.skip(reason="Plan 05-02: color palette tuning")
     def test_saturation_boost(self):
         """Saturation is boosted by the specified factor, clamped to valid range."""
+        import cv2
+
         from apollo7.extraction.color import extract_enriched_colors
 
         # Create an image with known HSV saturation
         h, w = 32, 32
         image = np.zeros((h, w, 3), dtype=np.float32)
-        image[:, :, 0] = 200.0 / 255.0
-        image[:, :, 1] = 100.0 / 255.0
-        image[:, :, 2] = 50.0 / 255.0
+        image[:, :, 0] = 200.0 / 255.0  # R
+        image[:, :, 1] = 100.0 / 255.0  # G
+        image[:, :, 2] = 50.0 / 255.0   # B
 
         boost = 1.3
         result = extract_enriched_colors(image, saturation_boost=boost)
         assert result.dtype == np.float32
 
-    @pytest.mark.skip(reason="Plan 05-02: color palette tuning")
+        # Compare saturation: boosted image should have higher saturation
+        orig_uint8 = (np.clip(image, 0, 1) * 255).astype(np.uint8)
+        orig_hsv = cv2.cvtColor(orig_uint8, cv2.COLOR_RGB2HSV)
+        orig_sat = orig_hsv[0, 0, 1]
+
+        result_rgb_uint8 = (np.clip(result[:, :, :3], 0, 1) * 255).astype(np.uint8)
+        result_hsv = cv2.cvtColor(result_rgb_uint8, cv2.COLOR_RGB2HSV)
+        result_sat = result_hsv[0, 0, 1]
+
+        expected_sat = min(int(orig_sat * boost), 255)
+        assert abs(int(result_sat) - expected_sat) <= 2, (
+            f"Expected saturation ~{expected_sat}, got {result_sat}"
+        )
+
     def test_enriched_colors_shape(self):
         """Output is (H, W, 4) float32 RGBA."""
         from apollo7.extraction.color import extract_enriched_colors
@@ -101,8 +115,14 @@ class TestEnrichedColors:
         h, w = 48, 64
         image = np.random.rand(h, w, 3).astype(np.float32)
         result = extract_enriched_colors(image)
+
         assert result.shape == (h, w, 4)
         assert result.dtype == np.float32
+        # Alpha channel should be 1.0
+        np.testing.assert_array_equal(result[:, :, 3], 1.0)
+        # RGB values in [0, 1]
+        assert result[:, :, :3].min() >= 0.0
+        assert result[:, :, :3].max() <= 1.0
 
 
 # ---------------------------------------------------------------------------

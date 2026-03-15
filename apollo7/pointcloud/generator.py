@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from apollo7.config.settings import LOD_POINT_BUDGET
+from apollo7.extraction.color import extract_enriched_colors
 from apollo7.pointcloud.depth_projection import generate_depth_projected_cloud
 from apollo7.pointcloud.feature_cluster import generate_feature_clustered_cloud
 from apollo7.pointcloud.lod import decimate_points
@@ -58,8 +59,9 @@ class PointCloudGenerator:
                     "depth_projected mode requires 'depth' in features"
                 )
             depth_map = depth_result.arrays["depth_map"]
+            enriched = extract_enriched_colors(image)
             positions, colors, sizes = generate_depth_projected_cloud(
-                image, depth_map, **kwargs
+                image, depth_map, enriched_colors=enriched, **kwargs
             )
         elif mode == "feature_clustered":
             positions, colors, sizes = generate_feature_clustered_cloud(

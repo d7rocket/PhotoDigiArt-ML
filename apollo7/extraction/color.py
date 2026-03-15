@@ -6,10 +6,44 @@ per-channel histogram computation.
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 from PIL import Image
 
 from apollo7.extraction.base import BaseExtractor, ExtractionResult
+
+
+def extract_enriched_colors(
+    image_rgb: np.ndarray,
+    saturation_boost: float = 1.3,
+) -> np.ndarray:
+    """Extract per-pixel colors with HSV saturation boost.
+
+    Makes sculpture colors more vibrant than the source photo.
+
+    Args:
+        image_rgb: H x W x 3 float32 RGB [0, 1].
+        saturation_boost: Multiplier for saturation channel (1.3 = 30% boost).
+
+    Returns:
+        H x W x 4 float32 RGBA with alpha=1.0, values in [0, 1].
+    """
+    h, w = image_rgb.shape[:2]
+
+    # Convert float32 [0,1] to uint8 for HSV conversion
+    img_uint8 = (np.clip(image_rgb, 0.0, 1.0) * 255).astype(np.uint8)
+
+    # RGB -> HSV, boost saturation, HSV -> RGB
+    hsv = cv2.cvtColor(img_uint8, cv2.COLOR_RGB2HSV)
+    hsv[:, :, 1] = np.clip(
+        hsv[:, :, 1].astype(np.float32) * saturation_boost, 0, 255
+    ).astype(np.uint8)
+    boosted_uint8 = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+    # Back to float32 [0, 1] with alpha=1.0
+    rgb_f32 = boosted_uint8.astype(np.float32) / 255.0
+    alpha = np.ones((h, w, 1), dtype=np.float32)
+    return np.concatenate([rgb_f32, alpha], axis=-1)
 
 
 class ColorExtractor(BaseExtractor):
