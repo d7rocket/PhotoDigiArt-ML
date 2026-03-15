@@ -51,6 +51,20 @@ def _make_edge_result() -> ExtractionResult:
     )
 
 
+def _make_semantic_result() -> ExtractionResult:
+    """Create a mock semantic extraction result."""
+    return ExtractionResult(
+        extractor_name="semantic",
+        data={
+            "mood_tags": [("serene", 0.85), ("peaceful", 0.72), ("mysterious", 0.45)],
+            "object_tags": [("tree", 0.91), ("sky", 0.78), ("mountain", 0.65)],
+        },
+        arrays={
+            "embedding": np.random.randn(512).astype(np.float32),
+        },
+    )
+
+
 def _make_depth_result() -> ExtractionResult:
     """Create a mock depth extraction result."""
     depth_map = np.linspace(0.0, 1.0, 50 * 50).reshape(50, 50).astype(np.float32)
@@ -71,7 +85,7 @@ class TestFeatureViewerPanel:
         assert panel.objectName() == "feature-viewer"
 
     def test_update_features_populates_sections(self, qapp):
-        """update_features with full data should create 3 sections."""
+        """update_features with full data should create 4 sections."""
         panel = FeatureViewerPanel()
         features = {
             "color": _make_color_result(),
@@ -80,8 +94,8 @@ class TestFeatureViewerPanel:
         }
         panel.update_features("/test/photo.jpg", features)
 
-        # Should have 3 sections
-        assert len(panel._sections) == 3
+        # Should have 4 sections (color, edge, depth, semantic placeholder)
+        assert len(panel._sections) == 4
         # Placeholder should be hidden
         assert panel._placeholder.isHidden()
 
@@ -103,14 +117,14 @@ class TestFeatureViewerPanel:
     def test_missing_extractor_shows_not_extracted(self, qapp):
         """Missing extractors should show 'Not extracted' gracefully."""
         panel = FeatureViewerPanel()
-        # Only color result, no edge or depth
+        # Only color result, no edge, depth, or semantic
         features = {
             "color": _make_color_result(),
         }
         panel.update_features("/test/photo.jpg", features)
 
-        # Should still have 3 sections (color, edge placeholder, depth placeholder)
-        assert len(panel._sections) == 3
+        # Should still have 4 sections (color, edge placeholder, depth placeholder, semantic placeholder)
+        assert len(panel._sections) == 4
 
     def test_update_features_twice_replaces_old(self, qapp):
         """Calling update_features again should replace previous sections."""
@@ -123,4 +137,18 @@ class TestFeatureViewerPanel:
         panel.update_features("/test/photo2.jpg", features2)
 
         # Sections should be freshly built, not accumulated
-        assert len(panel._sections) == 3  # always 3 sections (color, edge, depth)
+        assert len(panel._sections) == 4  # always 4 sections (color, edge, depth, semantic)
+
+    def test_semantic_section_with_tags(self, qapp):
+        """Semantic section should display mood and object tag pills."""
+        panel = FeatureViewerPanel()
+        features = {
+            "color": _make_color_result(),
+            "edge": _make_edge_result(),
+            "depth": _make_depth_result(),
+            "semantic": _make_semantic_result(),
+        }
+        panel.update_features("/test/photo.jpg", features)
+
+        # Should have 4 sections
+        assert len(panel._sections) == 4

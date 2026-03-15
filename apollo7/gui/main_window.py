@@ -40,6 +40,7 @@ from apollo7.config.settings import (
 from apollo7.gui.widgets.undo_commands import ParameterChangeCommand, ResetSectionCommand
 from apollo7.extraction.base import ExtractionResult
 from apollo7.extraction.cache import FeatureCache
+from apollo7.extraction.clip import ClipExtractor
 from apollo7.extraction.color import ColorExtractor
 from apollo7.extraction.depth import DepthExtractor
 from apollo7.extraction.edges import EdgeExtractor
@@ -161,7 +162,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # Extraction pipeline and point cloud generator
         self._pipeline = ExtractionPipeline(
-            [ColorExtractor(), EdgeExtractor(), DepthExtractor()]
+            [ColorExtractor(), EdgeExtractor(), DepthExtractor(), ClipExtractor()]
         )
         self._generator = PointCloudGenerator()
 
