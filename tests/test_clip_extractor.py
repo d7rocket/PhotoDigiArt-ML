@@ -49,6 +49,21 @@ class TestClipExtractor:
 
         return visual_session, text_session
 
+    def _inject_mock_state(self, extractor):
+        """Inject mock sessions and pre-computed text embeddings to avoid file I/O."""
+        visual_session, text_session = self._make_mock_sessions()
+        extractor._visual_session = visual_session
+        extractor._text_session = text_session
+        # Pre-populate cached text embeddings so tokenizer vocab file is not needed
+        extractor._mood_text_embs = np.random.randn(8, 512).astype(np.float32)
+        extractor._mood_text_embs /= np.linalg.norm(
+            extractor._mood_text_embs, axis=1, keepdims=True
+        )
+        extractor._object_text_embs = np.random.randn(10, 512).astype(np.float32)
+        extractor._object_text_embs /= np.linalg.norm(
+            extractor._object_text_embs, axis=1, keepdims=True
+        )
+
     def test_name_property(self):
         """ClipExtractor.name returns 'semantic'."""
         from apollo7.extraction.clip import ClipExtractor
@@ -61,9 +76,7 @@ class TestClipExtractor:
         from apollo7.extraction.clip import ClipExtractor
 
         extractor = ClipExtractor(model_dir="dummy_models")
-        visual_session, text_session = self._make_mock_sessions()
-        extractor._visual_session = visual_session
-        extractor._text_session = text_session
+        self._inject_mock_state(extractor)
 
         image = np.random.rand(100, 100, 3).astype(np.float32)
         result = extractor.extract(image)
