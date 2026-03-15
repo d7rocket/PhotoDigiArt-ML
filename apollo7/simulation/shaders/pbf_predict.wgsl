@@ -81,20 +81,32 @@ fn pbf_predict(@builtin(global_invocation_id) gid: vec3<u32>) {
     let home_pos = home.xyz;
     let feature_strength = home.w;  // w = feature modulation (default 1.0)
 
+    // Breathing modulation: inhale contracts (tighter), exhale relaxes (looser)
+    let effective_home_strength = params.home_strength * params.breathing_mod * feature_strength;
+    // Complement: more noise on exhale, less on inhale
+    let effective_noise_amp = params.noise_amplitude * (2.0 - params.breathing_mod);
+
     let displacement = home_pos - pos;
     let dist = length(displacement);
     var home_force = vec3<f32>(0.0);
     if (dist > 0.0001) {
         let dir = displacement / dist;
-        let effective_strength = params.home_strength * params.breathing_mod * feature_strength;
-        home_force = dir * effective_strength * dist;
+        home_force = dir * effective_home_strength * dist;
     }
+
+    // Curl noise: divergence-free flow field for ocean-current motion
+    let curl_force = curl_noise_3d(pos, params.noise_frequency, effective_noise_amp, params.time);
+
+    // Photo-influenced motion: busy/complex photos get more turbulent flow
+    // feature_strength from home_positions.w (high = edge/detail, low = flat)
+    let motion_mod = mix(0.7, 1.3, feature_strength);
+    let modulated_curl = curl_force * motion_mod;
 
     // Gravity
     let gravity = vec3<f32>(params.gravity_x, params.gravity_y, params.gravity_z);
 
     // Total external force
-    var force = home_force + gravity;
+    var force = home_force + modulated_curl + gravity;
 
     // Force clamping: cap magnitude to max_force
     let force_mag = length(force);

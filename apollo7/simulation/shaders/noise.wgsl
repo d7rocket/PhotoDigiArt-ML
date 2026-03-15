@@ -199,3 +199,50 @@ fn fbm3d(p: vec3<f32>, octaves: u32) -> f32 {
     }
     return value;
 }
+
+// --------------------------------------------------------------------------
+// Curl noise 3D -- divergence-free flow field from FBM noise
+// Computes curl of a 3D noise potential via finite differences.
+// Returns a normalized direction scaled by amplitude.
+// --------------------------------------------------------------------------
+
+fn curl_noise_3d(pos: vec3<f32>, freq: f32, amp: f32, time: f32) -> vec3<f32> {
+    let eps = 0.01;  // finite difference epsilon
+    let octaves = 3u;  // smooth, sweeping flows
+    let p = pos * freq + vec3<f32>(time * 0.1, 0.0, 0.0);  // slow time evolution
+
+    // Use three offset noise fields (one per axis) to compute curl.
+    // Offset each axis by a large constant to decorrelate the noise channels.
+    let offset_y = vec3<f32>(31.341, 57.129, 11.237);
+    let offset_z = vec3<f32>(73.157, 19.843, 43.691);
+
+    // Partial derivatives of noise_y and noise_z with respect to each axis:
+    // curl_x = dNz/dy - dNy/dz
+    let nz_py = fbm3d(p + offset_z + vec3<f32>(0.0, eps, 0.0), octaves);
+    let nz_ny = fbm3d(p + offset_z - vec3<f32>(0.0, eps, 0.0), octaves);
+    let ny_pz = fbm3d(p + offset_y + vec3<f32>(0.0, 0.0, eps), octaves);
+    let ny_nz = fbm3d(p + offset_y - vec3<f32>(0.0, 0.0, eps), octaves);
+    let curl_x = (nz_py - nz_ny) - (ny_pz - ny_nz);
+
+    // curl_y = dNx/dz - dNz/dx
+    let nx_pz = fbm3d(p + vec3<f32>(0.0, 0.0, eps), octaves);
+    let nx_nz = fbm3d(p - vec3<f32>(0.0, 0.0, eps), octaves);
+    let nz_px = fbm3d(p + offset_z + vec3<f32>(eps, 0.0, 0.0), octaves);
+    let nz_nx = fbm3d(p + offset_z - vec3<f32>(eps, 0.0, 0.0), octaves);
+    let curl_y = (nx_pz - nx_nz) - (nz_px - nz_nx);
+
+    // curl_z = dNy/dx - dNx/dy
+    let ny_px = fbm3d(p + offset_y + vec3<f32>(eps, 0.0, 0.0), octaves);
+    let ny_nx = fbm3d(p + offset_y - vec3<f32>(eps, 0.0, 0.0), octaves);
+    let nx_py = fbm3d(p + vec3<f32>(0.0, eps, 0.0), octaves);
+    let nx_ny = fbm3d(p - vec3<f32>(0.0, eps, 0.0), octaves);
+    let curl_z = (ny_px - ny_nx) - (nx_py - nx_ny);
+
+    let curl = vec3<f32>(curl_x, curl_y, curl_z) / (2.0 * eps);
+
+    let mag = length(curl);
+    if (mag < 0.0001) {
+        return vec3<f32>(0.0);
+    }
+    return (curl / mag) * amp;
+}

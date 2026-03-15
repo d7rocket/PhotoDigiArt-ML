@@ -19,7 +19,7 @@ import numpy as np
 
 from apollo7.simulation.buffers import GRID_TOTAL_CELLS, ParticleBuffer
 from apollo7.simulation.parameters import SimulationParams
-from apollo7.simulation.shaders import load_shader
+from apollo7.simulation.shaders import build_combined_shader, load_shader
 
 logger = logging.getLogger(__name__)
 
@@ -267,9 +267,15 @@ class PBFSolver:
     # -------------------------------------------------------------------------
 
     def _build_predict_pipeline(self) -> None:
-        """Build predict pass compute pipeline."""
+        """Build predict pass compute pipeline.
+
+        Uses combined shader (noise + pbf_predict) so curl_noise_3d
+        is available in the predict entry point.
+        """
         wgpu = self._wgpu
-        shader = self._device.create_shader_module(code=load_shader("pbf_predict"))
+        shader = self._device.create_shader_module(
+            code=build_combined_shader("noise", "pbf_predict")
+        )
 
         bgl = self._device.create_bind_group_layout(entries=[
             {"binding": 0, "visibility": wgpu.ShaderStage.COMPUTE,
