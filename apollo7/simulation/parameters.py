@@ -4,27 +4,33 @@ All tunable simulation parameters are stored here. Parameters are
 categorized as visual (hot-reload) or physics (requires sim restart).
 The to_uniform_bytes() method packs values into a flat buffer matching
 the WGSL SimParams struct layout with vec4 alignment throughout.
+
+PBF (Position Based Fluids) replaces the former SPH solver. All params
+are hot-reloadable -- the compute shader reads the uniform buffer each
+frame, so no restart is needed for any parameter change.
 """
 
 from __future__ import annotations
 
+import math
 import struct
 from dataclasses import dataclass, field, fields
 
 
 @dataclass
 class SimulationParams:
-    """All tunable parameters for the particle simulation.
+    """All tunable parameters for the PBF particle simulation.
 
     WGSL uniform layout (vec4-aligned, 16-byte boundaries):
-      vec4: noise_frequency, noise_amplitude, noise_octaves(u32->f32), turbulence_scale
-      vec4: viscosity, pressure_strength, surface_tension, attraction_strength
-      vec4: repulsion_strength, repulsion_radius, smoothing_radius, rest_density
-      vec4: gas_constant, speed, dt, damping
-      vec4: gravity.xyz, _pad0
-      vec4: wind.xyz, _pad1
-      vec4: time, sph_enabled, performance_mode, attractor_global_strength
-    Total: 7 * 16 = 112 bytes
+      vec4 0: noise_frequency, noise_amplitude, noise_octaves(f32), turbulence_scale
+      vec4 1: home_strength, breathing_rate, breathing_amplitude, breathing_mod
+      vec4 2: kernel_radius, rest_density, epsilon_pbf, solver_iterations(f32)
+      vec4 3: artificial_pressure_k, artificial_pressure_n(f32), delta_q, xsph_c
+      vec4 4: vorticity_epsilon, max_force, max_velocity, dt
+      vec4 5: gravity.xyz, damping
+      vec4 6: wind.xyz, speed
+      vec4 7: time, cell_size(=kernel_radius), particle_count(f32), _pad
+    Total: 8 * 16 = 128 bytes
     """
 
     # -- Noise / flow field --
@@ -33,20 +39,29 @@ class SimulationParams:
     noise_octaves: int = 4
     turbulence_scale: float = 1.0
 
-    # -- SPH fluid dynamics --
-    viscosity: float = 0.1
-    pressure_strength: float = 1.0
-    surface_tension: float = 0.01
-    attraction_strength: float = 0.5
+    # -- Home attraction / breathing --
+    home_strength: float = 5.0
+    breathing_rate: float = 0.2
+    breathing_amplitude: float = 0.15
 
-    # -- Attraction / repulsion --
-    repulsion_strength: float = 0.3
-    repulsion_radius: float = 0.1
-    smoothing_radius: float = 0.1
-    rest_density: float = 1000.0
+    # -- PBF solver core --
+    kernel_radius: float = 0.1
+    rest_density: float = 6378.0
+    epsilon_pbf: float = 600.0
+    solver_iterations: int = 2
+
+    # -- Artificial pressure / XSPH --
+    artificial_pressure_k: float = 0.0001
+    artificial_pressure_n: int = 4
+    delta_q: float = 0.03
+    xsph_c: float = 0.01
+
+    # -- Stability / clamping --
+    vorticity_epsilon: float = 0.01
+    max_force: float = 50.0
+    max_velocity: float = 10.0
 
     # -- Integration --
-    gas_constant: float = 2.0
     speed: float = 1.0
     dt: float = 0.016
     damping: float = 0.99
@@ -55,37 +70,38 @@ class SimulationParams:
     gravity: tuple[float, float, float] = (0.0, -0.1, 0.0)
     wind: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
-    # -- Collection attractors --
-    attractor_global_strength: float = 0.5
-
     # -- Runtime state (not user-tunable, but part of uniform) --
     time: float = 0.0
-    sph_enabled: float = 1.0
-    performance_mode: float = 0.0
+    breathing_mod: float = 1.0
+    particle_count: int = 0
 
     # Category sets for hot-reload vs restart classification
-    # All params are visual (hot-reload) for now — the single-pass shader
-    # reads everything from the uniform buffer each frame, so no restart needed.
+    # All params are visual (hot-reload) -- the compute shader reads
+    # everything from the uniform buffer each frame, no restart needed.
     _visual_params: set[str] = field(
         default_factory=lambda: {
             "noise_frequency",
             "noise_amplitude",
             "noise_octaves",
             "turbulence_scale",
+            "home_strength",
+            "breathing_rate",
+            "breathing_amplitude",
+            "kernel_radius",
+            "rest_density",
+            "epsilon_pbf",
+            "solver_iterations",
+            "artificial_pressure_k",
+            "artificial_pressure_n",
+            "delta_q",
+            "xsph_c",
+            "vorticity_epsilon",
+            "max_force",
+            "max_velocity",
             "speed",
             "damping",
             "gravity",
             "wind",
-            "viscosity",
-            "pressure_strength",
-            "surface_tension",
-            "attraction_strength",
-            "repulsion_strength",
-            "repulsion_radius",
-            "smoothing_radius",
-            "rest_density",
-            "gas_constant",
-            "attractor_global_strength",
         },
         repr=False,
         compare=False,
@@ -98,88 +114,115 @@ class SimulationParams:
     )
 
     # Uniform byte count (must be multiple of 16)
-    UNIFORM_SIZE: int = field(default=112, repr=False, compare=False)
+    UNIFORM_SIZE: int = field(default=128, repr=False, compare=False)
 
     def to_uniform_bytes(self) -> bytes:
         """Pack parameters into a flat float32 buffer matching WGSL layout.
 
-        Layout (7 x vec4 = 112 bytes):
-          [0..15]   noise_frequency, noise_amplitude, float(noise_octaves), turbulence_scale
-          [16..31]  viscosity, pressure_strength, surface_tension, attraction_strength
-          [32..47]  repulsion_strength, repulsion_radius, smoothing_radius, rest_density
-          [48..63]  gas_constant, speed, dt, damping
-          [64..79]  gravity.x, gravity.y, gravity.z, 0.0
-          [80..95]  wind.x, wind.y, wind.z, 0.0
-          [96..111] time, sph_enabled, performance_mode, attractor_global_strength
+        Layout (8 x vec4 = 128 bytes):
+          [0..15]    noise_frequency, noise_amplitude, float(noise_octaves), turbulence_scale
+          [16..31]   home_strength, breathing_rate, breathing_amplitude, breathing_mod
+          [32..47]   kernel_radius, rest_density, epsilon_pbf, float(solver_iterations)
+          [48..63]   artificial_pressure_k, float(artificial_pressure_n), delta_q, xsph_c
+          [64..79]   vorticity_epsilon, max_force, max_velocity, dt
+          [80..95]   gravity.x, gravity.y, gravity.z, damping
+          [96..111]  wind.x, wind.y, wind.z, speed
+          [112..127] time, cell_size(=kernel_radius), float(particle_count), 0.0
 
         Returns:
-            bytes of length UNIFORM_SIZE (112).
+            bytes of length UNIFORM_SIZE (128).
         """
         values = [
-            # vec4 0
+            # vec4 0: noise
             self.noise_frequency,
             self.noise_amplitude,
             float(self.noise_octaves),
             self.turbulence_scale,
-            # vec4 1
-            self.viscosity,
-            self.pressure_strength,
-            self.surface_tension,
-            self.attraction_strength,
-            # vec4 2
-            self.repulsion_strength,
-            self.repulsion_radius,
-            self.smoothing_radius,
+            # vec4 1: home / breathing
+            self.home_strength,
+            self.breathing_rate,
+            self.breathing_amplitude,
+            self.breathing_mod,
+            # vec4 2: PBF solver core
+            self.kernel_radius,
             self.rest_density,
-            # vec4 3
-            self.gas_constant,
-            self.speed,
+            self.epsilon_pbf,
+            float(self.solver_iterations),
+            # vec4 3: artificial pressure / XSPH
+            self.artificial_pressure_k,
+            float(self.artificial_pressure_n),
+            self.delta_q,
+            self.xsph_c,
+            # vec4 4: stability
+            self.vorticity_epsilon,
+            self.max_force,
+            self.max_velocity,
             self.dt,
-            self.damping,
-            # vec4 4: gravity + pad
+            # vec4 5: gravity + damping
             self.gravity[0],
             self.gravity[1],
             self.gravity[2],
-            0.0,
-            # vec4 5: wind + pad
+            self.damping,
+            # vec4 6: wind + speed
             self.wind[0],
             self.wind[1],
             self.wind[2],
-            0.0,
-            # vec4 6: runtime state + attractor strength
+            self.speed,
+            # vec4 7: runtime
             self.time,
-            self.sph_enabled,
-            self.performance_mode,
-            self.attractor_global_strength,
+            self.kernel_radius,  # cell_size = kernel_radius
+            float(self.particle_count),
+            0.0,  # padding
         ]
         return struct.pack(f"<{len(values)}f", *values)
+
+    def compute_breathing(self, time: float) -> float:
+        """Compute breathing modulation factor for the given time.
+
+        Returns a value oscillating around 1.0 with amplitude
+        breathing_amplitude and frequency breathing_rate Hz.
+
+        Args:
+            time: Current simulation time in seconds.
+
+        Returns:
+            Modulation factor, e.g. 1.0 + 0.15 * sin(2*pi*0.2*t)
+            giving range [0.85, 1.15] for default params.
+        """
+        return 1.0 + self.breathing_amplitude * math.sin(
+            2.0 * math.pi * self.breathing_rate * time
+        )
 
     @classmethod
     def is_visual_param(cls, name: str) -> bool:
         """Check if a parameter supports hot-reload (no sim restart).
 
-        All params are visual for now — the single-pass shader reads
-        everything from the uniform buffer each frame.
+        All params are visual -- the compute shader reads everything
+        from the uniform buffer each frame.
         """
         return name in {
             "noise_frequency",
             "noise_amplitude",
             "noise_octaves",
             "turbulence_scale",
+            "home_strength",
+            "breathing_rate",
+            "breathing_amplitude",
+            "kernel_radius",
+            "rest_density",
+            "epsilon_pbf",
+            "solver_iterations",
+            "artificial_pressure_k",
+            "artificial_pressure_n",
+            "delta_q",
+            "xsph_c",
+            "vorticity_epsilon",
+            "max_force",
+            "max_velocity",
             "speed",
             "damping",
             "gravity",
             "wind",
-            "viscosity",
-            "pressure_strength",
-            "surface_tension",
-            "attraction_strength",
-            "repulsion_strength",
-            "repulsion_radius",
-            "smoothing_radius",
-            "rest_density",
-            "gas_constant",
-            "attractor_global_strength",
         }
 
     @classmethod
