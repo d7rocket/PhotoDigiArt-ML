@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 04-04-PLAN.md
-last_updated: "2026-03-15T11:44:58Z"
-last_activity: 2026-03-15 -- Organic motion forces: curl noise, vorticity, XSPH, breathing (04-04)
+stopped_at: Completed 04-05-PLAN.md
+last_updated: "2026-03-15T12:25:00Z"
+last_activity: "2026-03-15 -- Creative controls GUI and visual verification (04-05) -- Phase 4 complete"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 25
-  completed_plans: 24
-  percent: 96
+  completed_plans: 25
+  percent: 100
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, living 3D sculptures.
-**Current focus:** Phase 4 - Stable Physics (v2.0 Make It Alive)
+**Current focus:** Phase 4 Complete -- Ready for Phase 5 (v2.0 Make It Alive)
 
 ## Current Position
 
-Phase: 4 of 6 (Stable Physics)
-Plan: 4 of 5 in current phase
-Status: Executing
-Last activity: 2026-03-15 -- Organic motion forces: curl noise, vorticity, XSPH, breathing (04-04)
+Phase: 4 of 6 (Stable Physics) -- COMPLETE
+Plan: 5 of 5 in current phase (done)
+Status: Phase Complete
+Last activity: 2026-03-15 -- Creative controls GUI and visual verification (04-05) -- Phase 4 complete
 
-Progress: [█████████░] 96% (v2.0)
+Progress: [██████████] 100% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4 (v2.0)
-- Average duration: 4.5min
-- Total execution time: 18min
+- Total plans completed: 5 (v2.0)
+- Average duration: 4.2min
+- Total execution time: 21min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -45,6 +45,7 @@ Progress: [█████████░] 96% (v2.0)
 | 04    | 02   | 4min     | 2     | 8     |
 | 04    | 03   | 6min     | 2     | 6     |
 | 04    | 04   | 5min     | 2     | 5     |
+| 04    | 05   | 3min     | 2     | 5     |
 
 ## Accumulated Context
 
@@ -69,6 +70,9 @@ Recent decisions affecting current work:
 - [04-04]: Curl noise uses 3 decorrelated FBM channels with large constant offsets
 - [04-04]: Vorticity confinement uses simplified eta approximation (omega direction)
 - [04-04]: XSPH and vorticity share same neighbor loop in finalize
+- [04-05]: Cohesion slider maps solver_iterations 1-6 with Ethereal-to-Liquid spectrum
+- [04-05]: Crossfade snaps iterations (discrete) but interpolates home_strength for smooth transition
+- [04-05]: 4 essential sliders visible, 5 advanced in collapsible section
 
 ### Pending Todos
 
@@ -83,6 +87,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T11:44:58Z
-Stopped at: Completed 04-04-PLAN.md
-Resume file: .planning/phases/04-stable-physics/04-04-SUMMARY.md
+Last session: 2026-03-15T12:25:00Z
+Stopped at: Completed 04-05-PLAN.md -- Phase 4 (Stable Physics) fully complete
+Resume file: .planning/phases/04-stable-physics/04-05-SUMMARY.md
