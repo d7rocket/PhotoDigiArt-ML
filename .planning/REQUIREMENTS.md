@@ -23,9 +23,9 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Collection Analysis
 
-- [ ] **COLL-01**: Pipeline identifies patterns across photo collections (clustering, trends, outliers)
-- [ ] **COLL-02**: User can visualize collection-level patterns (e.g., t-SNE/UMAP embedding space)
-- [ ] **COLL-03**: Collection patterns feed into sculpture generation as compositional signals
+- [x] **COLL-01**: Pipeline identifies patterns across photo collections (clustering, trends, outliers)
+- [x] **COLL-02**: User can visualize collection-level patterns (e.g., t-SNE/UMAP embedding space)
+- [x] **COLL-03**: Collection patterns feed into sculpture generation as compositional signals
 
 ### 3D Rendering & Visualization
 
@@ -115,9 +115,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTRACT-03 | Phase 1 | Complete |
 | EXTRACT-04 | Phase 3 | Complete |
 | EXTRACT-05 | Phase 2 | Complete |
-| COLL-01 | Phase 3 | Pending |
-| COLL-02 | Phase 3 | Pending |
-| COLL-03 | Phase 3 | Pending |
+| COLL-01 | Phase 3 | Complete |
+| COLL-02 | Phase 3 | Complete |
+| COLL-03 | Phase 3 | Complete |
 | RENDER-01 | Phase 1 | Complete |
 | RENDER-02 | Phase 1 | Complete |
 | RENDER-03 | Phase 1 | Complete |
