@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 04-03-PLAN.md
-last_updated: "2026-03-15T11:37:04Z"
-last_activity: 2026-03-15 -- Engine PBF integration with CFL timestep and stability tests (04-03)
+stopped_at: Completed 04-04-PLAN.md
+last_updated: "2026-03-15T11:44:58Z"
+last_activity: 2026-03-15 -- Organic motion forces: curl noise, vorticity, XSPH, breathing (04-04)
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 25
-  completed_plans: 23
-  percent: 92
+  completed_plans: 24
+  percent: 96
 ---
 
 # Project State
@@ -26,24 +26,25 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 4 of 6 (Stable Physics)
-Plan: 3 of 5 in current phase
+Plan: 4 of 5 in current phase
 Status: Executing
-Last activity: 2026-03-15 -- Engine PBF integration with CFL timestep and stability tests (04-03)
+Last activity: 2026-03-15 -- Organic motion forces: curl noise, vorticity, XSPH, breathing (04-04)
 
-Progress: [█████████░] 92% (v2.0)
+Progress: [█████████░] 96% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3 (v2.0)
-- Average duration: 4.3min
-- Total execution time: 13min
+- Total plans completed: 4 (v2.0)
+- Average duration: 4.5min
+- Total execution time: 18min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 04    | 01   | 3min     | 2     | 4     |
 | 04    | 02   | 4min     | 2     | 8     |
 | 04    | 03   | 6min     | 2     | 6     |
+| 04    | 04   | 5min     | 2     | 5     |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Recent decisions affecting current work:
 - [04-03]: CFL uses conservative estimate from params rather than GPU readback (avoids sync stall)
 - [04-03]: Feature strength range [0.5, 1.5] -- edges hold tighter, flat areas drift more
 - [04-03]: PBF solver rebuilt on restart() for clean state
+- [04-04]: Curl noise uses 3 decorrelated FBM channels with large constant offsets
+- [04-04]: Vorticity confinement uses simplified eta approximation (omega direction)
+- [04-04]: XSPH and vorticity share same neighbor loop in finalize
 
 ### Pending Todos
 
@@ -79,6 +83,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T11:37:04Z
-Stopped at: Completed 04-03-PLAN.md
-Resume file: .planning/phases/04-stable-physics/04-03-SUMMARY.md
+Last session: 2026-03-15T11:44:58Z
+Stopped at: Completed 04-04-PLAN.md
+Resume file: .planning/phases/04-stable-physics/04-04-SUMMARY.md
