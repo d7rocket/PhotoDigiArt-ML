@@ -100,6 +100,25 @@ class ParticleBuffer:
             size=max_particles * 4, usage=aux_usage
         )
 
+        # --- PBF-specific buffers ---
+
+        # Home positions: vec4<f32> per particle (xyz = home pos, w = feature_strength)
+        self._home_positions_buf = device.create_buffer(
+            size=max_particles * 16, usage=aux_usage
+        )
+        # Predicted positions: vec4<f32> per particle (PBF predicted pos)
+        self._predicted_buf = device.create_buffer(
+            size=max_particles * 16, usage=aux_usage
+        )
+        # Lambda: f32 per particle (PBF constraint multiplier)
+        self._lambda_buf = device.create_buffer(
+            size=max_particles * 4, usage=aux_usage
+        )
+        # Delta-p: vec4<f32> per particle (position corrections)
+        self._delta_p_buf = device.create_buffer(
+            size=max_particles * 16, usage=aux_usage
+        )
+
         logger.info(
             "ParticleBuffer created: max_particles=%d, state=%d bytes, colors=%d bytes",
             max_particles,
@@ -134,6 +153,14 @@ class ParticleBuffer:
         # Upload colors
         colors_f32 = colors[:, 0:4].astype(np.float32)
         self._device.queue.write_buffer(self._color_buf, 0, colors_f32.tobytes())
+
+        # Upload home positions: copy of initial positions with w=1.0 (default feature strength)
+        home = np.zeros((n, 4), dtype=np.float32)
+        home[:, 0:3] = positions[:, 0:3].astype(np.float32)
+        home[:, 3] = 1.0  # default feature strength
+        self._device.queue.write_buffer(
+            self._home_positions_buf, 0, home.tobytes()
+        )
 
         # Reset to read from buf_a
         self._current_input = "a"
@@ -306,6 +333,26 @@ class ParticleBuffer:
     def sorted_indices_buffer(self):
         """Sorted particle indices buffer (sorted by cell hash)."""
         return self._sorted_indices_buf
+
+    @property
+    def home_positions_buffer(self):
+        """Home positions buffer (vec4: xyz + feature_strength)."""
+        return self._home_positions_buf
+
+    @property
+    def predicted_buffer(self):
+        """Predicted positions buffer for PBF solver (vec4 per particle)."""
+        return self._predicted_buf
+
+    @property
+    def lambda_buffer(self):
+        """Lambda buffer for PBF constraint multiplier (f32 per particle)."""
+        return self._lambda_buf
+
+    @property
+    def delta_p_buffer(self):
+        """Delta-p buffer for PBF position corrections (vec4 per particle)."""
+        return self._delta_p_buf
 
     @property
     def particle_count(self) -> int:
