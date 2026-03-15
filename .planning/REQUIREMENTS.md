@@ -45,15 +45,15 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
 ### Physics & Simulation
 
-- [ ] **PHYS-01**: Particles maintain coherent form via per-particle home position attraction instead of dispersing into chaos
+- [x] **PHYS-01**: Particles maintain coherent form via per-particle home position attraction instead of dispersing into chaos
 - [ ] **PHYS-02**: PBF (Position Based Fluids) solver replaces SPH with unconditionally stable constraint resolution
 - [ ] **PHYS-03**: Spatial hash rebuilds every frame on GPU so neighbor lookups remain correct during motion
-- [ ] **PHYS-04**: Force and velocity clamping prevents runaway acceleration
+- [x] **PHYS-04**: Force and velocity clamping prevents runaway acceleration
 - [ ] **PHYS-05**: CFL-adaptive timestep adjusts step size based on maximum particle velocity
 - [ ] **PHYS-06**: Curl noise flow fields produce smooth, organic particle motion
 - [ ] **PHYS-07**: Vortex confinement adds swirling, turbulent detail to particle motion
-- [ ] **PHYS-08**: Breathing modulation (sine wave on home_strength/noise_amplitude) makes sculptures feel alive
-- [ ] **PHYS-09**: Solver iterations parameter acts as creative control (1=gas/wispy, 4+=liquid/cohesive)
+- [x] **PHYS-08**: Breathing modulation (sine wave on home_strength/noise_amplitude) makes sculptures feel alive
+- [x] **PHYS-09**: Solver iterations parameter acts as creative control (1=gas/wispy, 4+=liquid/cohesive)
 
 ### Rendering Quality
 
@@ -119,15 +119,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PHYS-01 | Phase 4 | Pending |
+| PHYS-01 | Phase 4 | Complete |
 | PHYS-02 | Phase 4 | Pending |
 | PHYS-03 | Phase 4 | Pending |
-| PHYS-04 | Phase 4 | Pending |
+| PHYS-04 | Phase 4 | Complete |
 | PHYS-05 | Phase 4 | Pending |
 | PHYS-06 | Phase 4 | Pending |
 | PHYS-07 | Phase 4 | Pending |
-| PHYS-08 | Phase 4 | Pending |
-| PHYS-09 | Phase 4 | Pending |
+| PHYS-08 | Phase 4 | Complete |
+| PHYS-09 | Phase 4 | Complete |
 | REND-01 | Phase 5 | Pending |
 | REND-02 | Phase 5 | Pending |
 | REND-03 | Phase 5 | Pending |
