@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
-status: completed
-stopped_at: Phase 5 planned — 4 plans in 3 waves, verified
-last_updated: "2026-03-15T13:33:00.360Z"
-last_activity: 2026-03-15 -- Creative controls GUI and visual verification (04-05) -- Phase 4 complete
+status: in-progress
+stopped_at: Completed 05-02 depth and color enrichment
+last_updated: "2026-03-15T16:05:08Z"
+last_activity: 2026-03-15 -- CLAHE depth enhancement and color enrichment (05-02)
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 29
-  completed_plans: 25
-  percent: 100
+  completed_plans: 27
+  percent: 93
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, living 3D sculptures.
-**Current focus:** Phase 4 Complete -- Ready for Phase 5 (v2.0 Make It Alive)
+**Current focus:** Phase 5 -- Visual Quality (v2.0 Make It Alive)
 
 ## Current Position
 
-Phase: 4 of 6 (Stable Physics) -- COMPLETE
-Plan: 5 of 5 in current phase (done)
-Status: Phase Complete
-Last activity: 2026-03-15 -- Creative controls GUI and visual verification (04-05) -- Phase 4 complete
+Phase: 5 of 6 (Visual Quality)
+Plan: 1 of 4 in current phase (done)
+Status: In Progress
+Last activity: 2026-03-15 -- GPU buffer sharing for zero-copy rendering (05-01)
 
-Progress: [██████████] 100% (v2.0)
+Progress: [█████████░] 90% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5 (v2.0)
-- Average duration: 4.2min
-- Total execution time: 21min
+- Total plans completed: 6 (v2.0)
+- Average duration: 4.3min
+- Total execution time: 26min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -46,6 +46,7 @@ Progress: [██████████] 100% (v2.0)
 | 04    | 03   | 6min     | 2     | 6     |
 | 04    | 04   | 5min     | 2     | 5     |
 | 04    | 05   | 3min     | 2     | 5     |
+| 05    | 01   | 5min     | 2     | 4     |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Recent decisions affecting current work:
 - [04-05]: Cohesion slider maps solver_iterations 1-6 with Ethereal-to-Liquid spectrum
 - [04-05]: Crossfade snaps iterations (discrete) but interpolates home_strength for smooth transition
 - [04-05]: 4 essential sliders visible, 5 advanced in collapsible section
+- [05-01]: Lazy pipeline creation for extract shader (built on first dispatch)
+- [05-01]: CPU readback fallback preserved for safety if GPU sharing fails
+- [05-01]: Color buffer gets VERTEX flag directly (no extract shader needed)
 
 ### Pending Todos
 
@@ -81,12 +85,12 @@ None yet.
 ### Blockers/Concerns
 
 - AMD RDNA 4 compute driver maturity -- test PBF solver on target hardware immediately after implementation
-- GPU buffer sharing between wgpu compute and pygfx render -- exact API needs prototyping (MEDIUM confidence)
+- GPU buffer sharing between wgpu compute and pygfx render -- RESOLVED: _wgpu_object injection works (HIGH confidence)
 - PBF tuning for artistic vs. physically accurate results -- needs experimentation
 - GUI references to set_performance_mode need updating (deferred from 04-03)
 
 ## Session Continuity
 
-Last session: 2026-03-15T13:33:00.357Z
-Stopped at: Phase 5 planned — 4 plans in 3 waves, verified
-Resume file: .planning/phases/05-visual-quality/05-01-PLAN.md
+Last session: 2026-03-15T16:05:00Z
+Stopped at: Completed 05-01 GPU buffer sharing
+Resume file: .planning/phases/05-visual-quality/05-02-PLAN.md
