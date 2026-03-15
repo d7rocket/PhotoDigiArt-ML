@@ -80,8 +80,8 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
 ### Depth & Extraction
 
-- [ ] **DPTH-01**: Depth maps use CLAHE post-processing for proper saturation and contrast
-- [ ] **DPTH-02**: Depth-to-color mapping uses richer, more expressive color range
+- [x] **DPTH-01**: Depth maps use CLAHE post-processing for proper saturation and contrast
+- [x] **DPTH-02**: Depth-to-color mapping uses richer, more expressive color range
 
 ## Future Requirements
 
@@ -134,8 +134,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REND-04 | Phase 5 | Pending |
 | REND-05 | Phase 5 | Complete |
 | REND-06 | Phase 5 | Pending |
-| DPTH-01 | Phase 5 | Pending |
-| DPTH-02 | Phase 5 | Pending |
+| DPTH-01 | Phase 5 | Complete |
+| DPTH-02 | Phase 5 | Complete |
 | UI-01 | Phase 6 | Pending |
 | UI-02 | Phase 6 | Pending |
 | UI-03 | Phase 6 | Pending |

@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 5 of 6 (Visual Quality)
-Plan: 1 of 4 in current phase (done)
+Plan: 2 of 4 in current phase
 Status: In Progress
-Last activity: 2026-03-15 -- GPU buffer sharing for zero-copy rendering (05-01)
+Last activity: 2026-03-15 -- CLAHE depth enhancement and color enrichment (05-02)
 
-Progress: [█████████░] 90% (v2.0)
+Progress: [█████████▌] 93% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6 (v2.0)
-- Average duration: 4.3min
-- Total execution time: 26min
+- Total plans completed: 7 (v2.0)
+- Average duration: 4.4min
+- Total execution time: 31min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -47,6 +47,7 @@ Progress: [█████████░] 90% (v2.0)
 | 04    | 04   | 5min     | 2     | 5     |
 | 04    | 05   | 3min     | 2     | 5     |
 | 05    | 01   | 5min     | 2     | 4     |
+| 05    | 02   | 5min     | 2     | 6     |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [04-05]: Cohesion slider maps solver_iterations 1-6 with Ethereal-to-Liquid spectrum
 - [04-05]: Crossfade snaps iterations (discrete) but interpolates home_strength for smooth transition
 - [04-05]: 4 essential sliders visible, 5 advanced in collapsible section
+- [05-02]: CLAHE clip_limit=3.0, tile_size=8 for optimal depth contrast
+- [05-02]: Saturation boost default 1.3 (30%) -- middle of 20-40% user range
+- [05-02]: Color enrichment baked at extraction time via generator.py call site
 - [05-01]: Lazy pipeline creation for extract shader (built on first dispatch)
 - [05-01]: CPU readback fallback preserved for safety if GPU sharing fails
 - [05-01]: Color buffer gets VERTEX flag directly (no extract shader needed)
@@ -91,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T16:05:00Z
-Stopped at: Completed 05-01 GPU buffer sharing
-Resume file: .planning/phases/05-visual-quality/05-02-PLAN.md
+Last session: 2026-03-15T16:05:08Z
+Stopped at: Completed 05-02 depth and color enrichment
+Resume file: .planning/phases/05-visual-quality/05-03-PLAN.md
