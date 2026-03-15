@@ -571,47 +571,26 @@ class ViewportWidget(QtWidgets.QWidget):
                 logger.debug("Skipping non-numeric preset param: %s", name)
 
     def _setup_gpu_buffer_sharing(self, n_particles: int) -> None:
-        """Set up zero-copy GPU buffer sharing between simulation and pygfx.
+        """Set up GPU buffer sharing between simulation and pygfx.
 
-        Creates pygfx Buffer shells and injects the wgpu buffer objects
-        from ParticleBuffer, avoiding CPU readback entirely.
+        NOTE: Direct _wgpu_object injection is incompatible with pygfx's
+        internal vertex shaders (expects vec3 positions, we have vec4).
+        Currently disabled — uses CPU readback fallback instead.
+        GPU buffer sharing needs a different approach (e.g., custom render
+        pipeline or pygfx format negotiation) for future optimization.
 
         Args:
             n_particles: Number of particles for buffer sizing.
         """
-        try:
-            pb = self._sim_engine._particle_buffer
-
-            # Create pygfx Buffer shell for positions (vec4<f32> per particle)
-            self._shared_pos_buf = gfx.Buffer(
-                np.zeros((n_particles, 4), dtype=np.float32)
-            )
-            # Inject the wgpu render positions buffer
-            self._shared_pos_buf._wgpu_object = pb.render_positions_buffer
-
-            # Create pygfx Buffer shell for colors (vec4<f32> per particle)
-            self._shared_color_buf = gfx.Buffer(
-                np.zeros((n_particles, 4), dtype=np.float32)
-            )
-            # Inject the wgpu color buffer directly
-            self._shared_color_buf._wgpu_object = pb.color_buffer
-
-            # Assign shared buffers to sim cloud geometry
-            geo = self._sim_cloud.geometry
-            geo.positions = self._shared_pos_buf
-            geo.colors = self._shared_color_buf
-
-            self._gpu_sharing_active = True
-            logger.info(
-                "GPU buffer sharing active: %d particles, zero-copy rendering",
-                n_particles,
-            )
-        except Exception as exc:
-            self._gpu_sharing_active = False
-            logger.warning(
-                "GPU buffer sharing setup failed, falling back to CPU readback: %s",
-                exc,
-            )
+        # Disabled: pygfx vertex shader expects vec3 positions but our
+        # render_positions_buffer stores vec4. Injecting causes shader
+        # validation error. Fall back to CPU readback for now.
+        self._gpu_sharing_active = False
+        logger.info(
+            "GPU buffer sharing disabled (pygfx vec3/vec4 mismatch), "
+            "using CPU readback for %d particles",
+            n_particles,
+        )
 
     def _update_points_from_sim(self) -> None:
         """Update pygfx geometry from simulation GPU buffers.

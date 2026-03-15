@@ -132,10 +132,20 @@ class TestEnrichedColors:
 
 def test_blend_alpha_configured():
     """_BLEND_ALPHA should be less than 1.0 for luminous overlap on white bg."""
-    from apollo7.gui.widgets.viewport_widget import _BLEND_ALPHA
+    import ast
+    from pathlib import Path
 
-    assert 0.7 <= _BLEND_ALPHA < 1.0, (
-        f"_BLEND_ALPHA should be in [0.7, 1.0) for visible particles on white bg, got {_BLEND_ALPHA}"
+    # Read constant directly from source to avoid triggering pygfx device init
+    src = Path("apollo7/gui/widgets/viewport_widget.py").read_text()
+    for line in src.splitlines():
+        if line.startswith("_BLEND_ALPHA"):
+            value = float(ast.literal_eval(line.split("=")[1].strip()))
+            break
+    else:
+        raise AssertionError("_BLEND_ALPHA not found in viewport_widget.py")
+
+    assert 0.7 <= value < 1.0, (
+        f"_BLEND_ALPHA should be in [0.7, 1.0) for visible particles on white bg, got {value}"
     )
 
 
