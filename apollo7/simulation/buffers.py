@@ -10,6 +10,7 @@ prevent read-write conflicts during parallel compute shader execution.
 from __future__ import annotations
 
 import logging
+import math
 
 import numpy as np
 
@@ -62,7 +63,25 @@ class ParticleBuffer:
 
         self._buf_a = device.create_buffer(size=state_size, usage=usage)
         self._buf_b = device.create_buffer(size=state_size, usage=usage)
-        self._color_buf = device.create_buffer(size=color_size, usage=usage)
+
+        # Color buffer needs VERTEX flag for direct pygfx injection
+        color_usage = usage | wgpu.BufferUsage.VERTEX
+        self._color_buf = device.create_buffer(size=color_size, usage=color_usage)
+
+        # Render positions buffer: packed vec4<f32> for pygfx (VERTEX + STORAGE)
+        render_usage = (
+            wgpu.BufferUsage.STORAGE
+            | wgpu.BufferUsage.VERTEX
+            | wgpu.BufferUsage.COPY_DST
+            | wgpu.BufferUsage.COPY_SRC
+        )
+        self._render_positions_buf = device.create_buffer(
+            size=max_particles * 16, usage=render_usage
+        )
+
+        # Cached extract-positions pipeline (lazily built)
+        self._extract_pipeline = None
+        self._extract_bgl = None
 
         # Track which buffer is input vs output
         self._current_input = "a"
@@ -356,6 +375,95 @@ class ParticleBuffer:
     def delta_p_buffer(self):
         """Delta-p buffer for PBF position corrections (vec4 per particle)."""
         return self._delta_p_buf
+
+    @property
+    def render_positions_buffer(self):
+        """Packed vec4 positions buffer for pygfx rendering (VERTEX usage)."""
+        return self._render_positions_buf
+
+    def extract_positions_to_render(self, device) -> None:
+        """Dispatch compute shader to extract xyz from state into render buffer.
+
+        Reads from the current output buffer (stride-32 particle state) and
+        writes packed vec4<f32>(pos.xyz, 1.0) into render_positions_buffer.
+
+        Should be called after swap() each frame.
+
+        Args:
+            device: wgpu.GPUDevice for command encoding.
+        """
+        import wgpu
+
+        n = self._particle_count
+        if n == 0:
+            return
+
+        # Lazily build pipeline on first call
+        if self._extract_pipeline is None:
+            from apollo7.simulation.shaders import load_shader
+
+            shader_code = load_shader("extract_positions")
+            shader_module = device.create_shader_module(code=shader_code)
+
+            self._extract_bgl = device.create_bind_group_layout(
+                entries=[
+                    {
+                        "binding": 0,
+                        "visibility": wgpu.ShaderStage.COMPUTE,
+                        "buffer": {
+                            "type": wgpu.BufferBindingType.read_only_storage
+                        },
+                    },
+                    {
+                        "binding": 1,
+                        "visibility": wgpu.ShaderStage.COMPUTE,
+                        "buffer": {"type": wgpu.BufferBindingType.storage},
+                    },
+                ]
+            )
+            layout = device.create_pipeline_layout(
+                bind_group_layouts=[self._extract_bgl]
+            )
+            self._extract_pipeline = device.create_compute_pipeline(
+                layout=layout,
+                compute={
+                    "module": shader_module,
+                    "entry_point": "extract_positions",
+                },
+            )
+
+        # Create bind group with current output buffer -> render positions
+        bind_group = device.create_bind_group(
+            layout=self._extract_bgl,
+            entries=[
+                {
+                    "binding": 0,
+                    "resource": {
+                        "buffer": self.output_buffer,
+                        "offset": 0,
+                        "size": n * PARTICLE_STATE_STRIDE,
+                    },
+                },
+                {
+                    "binding": 1,
+                    "resource": {
+                        "buffer": self._render_positions_buf,
+                        "offset": 0,
+                        "size": n * 16,
+                    },
+                },
+            ],
+        )
+
+        # Dispatch
+        workgroups = math.ceil(n / 256)
+        encoder = device.create_command_encoder()
+        compute_pass = encoder.begin_compute_pass()
+        compute_pass.set_pipeline(self._extract_pipeline)
+        compute_pass.set_bind_group(0, bind_group)
+        compute_pass.dispatch_workgroups(workgroups)
+        compute_pass.end()
+        device.queue.submit([encoder.finish()])
 
     @property
     def particle_count(self) -> int:
