@@ -1,43 +1,43 @@
 # Requirements: Apollo 7
 
 **Defined:** 2026-03-14
-**Core Value:** Photos become data, data becomes art — the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
+**Core Value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
 
 ## v1.0 Requirements (Validated)
 
 All v1.0 requirements shipped. See v1.0 milestone archive for details.
 
-### Ingestion — ✓ Complete
-- ✓ **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) — Phase 1
-- ✓ **INGEST-02**: User can batch-ingest an entire folder of photos — Phase 1
-- ✓ **INGEST-03**: User can view thumbnails and metadata in library panel — Phase 1
+### Ingestion -- Complete
+- [x] **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) -- Phase 1
+- [x] **INGEST-02**: User can batch-ingest an entire folder of photos -- Phase 1
+- [x] **INGEST-03**: User can view thumbnails and metadata in library panel -- Phase 1
 
-### Feature Extraction — ✓ Complete
-- ✓ **EXTRACT-01**: Pipeline extracts dominant colors, gradients, color distributions — Phase 1
-- ✓ **EXTRACT-02**: Pipeline extracts edges, contours, geometric structure — Phase 1
-- ✓ **EXTRACT-03**: Pipeline generates depth maps via Depth Anything V2 — Phase 1
-- ✓ **EXTRACT-04**: Pipeline extracts semantic features via CLIP — Phase 3
-- ✓ **EXTRACT-05**: User can view extracted features per photo — Phase 2
+### Feature Extraction -- Complete
+- [x] **EXTRACT-01**: Pipeline extracts dominant colors, gradients, color distributions -- Phase 1
+- [x] **EXTRACT-02**: Pipeline extracts edges, contours, geometric structure -- Phase 1
+- [x] **EXTRACT-03**: Pipeline generates depth maps via Depth Anything V2 -- Phase 1
+- [x] **EXTRACT-04**: Pipeline extracts semantic features via CLIP -- Phase 3
+- [x] **EXTRACT-05**: User can view extracted features per photo -- Phase 2
 
-### Collection Analysis — ✓ Complete
-- ✓ **COLL-01**: Pipeline identifies patterns across collections — Phase 3
-- ✓ **COLL-02**: User can visualize collection-level patterns — Phase 3
-- ✓ **COLL-03**: Collection patterns feed into sculpture generation — Phase 3
+### Collection Analysis -- Complete
+- [x] **COLL-01**: Pipeline identifies patterns across collections -- Phase 3
+- [x] **COLL-02**: User can visualize collection-level patterns -- Phase 3
+- [x] **COLL-03**: Collection patterns feed into sculpture generation -- Phase 3
 
-### 3D Rendering — ✓ Complete
-- ✓ **RENDER-01** through **RENDER-07**: Point clouds, viewport, particles, post-processing, animation — Phases 1-3
+### 3D Rendering -- Complete
+- [x] **RENDER-01** through **RENDER-07**: Point clouds, viewport, particles, post-processing, animation -- Phases 1-3
 
-### Simulation — ✓ Complete
-- ✓ **SIM-01** through **SIM-04**: Particle models, fluid sim, flow fields — Phase 2
+### Simulation -- Complete
+- [x] **SIM-01** through **SIM-04**: Particle models, fluid sim, flow fields -- Phase 2
 
-### Creative Controls — ✓ Complete
-- ✓ **CTRL-01** through **CTRL-07**: Parameter panel, mapping editor, undo/redo, save/load, export, presets — Phases 2-3
+### Creative Controls -- Complete
+- [x] **CTRL-01** through **CTRL-07**: Parameter panel, mapping editor, undo/redo, save/load, export, presets -- Phases 2-3
 
-### Discovery & AI — ✓ Complete
-- ✓ **DISC-01** through **DISC-04**: Discovery mode, Claude API, offline-first — Phase 3
+### Discovery & AI -- Complete
+- [x] **DISC-01** through **DISC-04**: Discovery mode, Claude API, offline-first -- Phase 3
 
-### Desktop Application — ✓ Complete
-- ✓ **APP-01** through **APP-04**: PySide6 GUI, AMD GPU, responsive UI — Phase 1
+### Desktop Application -- Complete
+- [x] **APP-01** through **APP-04**: PySide6 GUI, AMD GPU, responsive UI -- Phase 1
 
 ## v2.0 Requirements
 
@@ -67,7 +67,7 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 ### UI & UX
 
 - [ ] **UI-01**: Clean, logical panel layout with clear visual hierarchy
-- [ ] **UI-02**: Tiered parameter controls — 6 essential sliders visible, advanced collapsed
+- [ ] **UI-02**: Tiered parameter controls -- 6 essential sliders visible, advanced collapsed
 - [ ] **UI-03**: qt-material theming for polished, modern appearance
 - [ ] **UI-04**: Parameter presets with visual thumbnails for quick selection
 
@@ -106,7 +106,7 @@ Deferred beyond v2.0. Tracked but not in current roadmap.
 |---------|--------|
 | Replace pygfx/wgpu rendering engine | Research confirmed current stack is correct; problems are physics, not rendering |
 | Replace PySide6 GUI framework | pygfx integration works; theme with qt-material instead |
-| Taichi Lang integration | Cannot share GPU buffers with wgpu/pygfx — CPU roundtrip kills performance |
+| Taichi Lang integration | Cannot share GPU buffers with wgpu/pygfx -- CPU roundtrip kills performance |
 | NVIDIA Warp | CUDA-only, incompatible with AMD RDNA 4 |
 | Text-to-image / prompt-based generation | Apollo 7 transforms DATA, not prompts |
 | Node-based visual programming | TouchDesigner does this; Apollo 7's value is integrated GUI |
@@ -119,13 +119,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| PHYS-01 | Phase 4 | Pending |
+| PHYS-02 | Phase 4 | Pending |
+| PHYS-03 | Phase 4 | Pending |
+| PHYS-04 | Phase 4 | Pending |
+| PHYS-05 | Phase 4 | Pending |
+| PHYS-06 | Phase 4 | Pending |
+| PHYS-07 | Phase 4 | Pending |
+| PHYS-08 | Phase 4 | Pending |
+| PHYS-09 | Phase 4 | Pending |
+| REND-01 | Phase 5 | Pending |
+| REND-02 | Phase 5 | Pending |
+| REND-03 | Phase 5 | Pending |
+| REND-04 | Phase 5 | Pending |
+| REND-05 | Phase 5 | Pending |
+| REND-06 | Phase 5 | Pending |
+| DPTH-01 | Phase 5 | Pending |
+| DPTH-02 | Phase 5 | Pending |
+| UI-01 | Phase 6 | Pending |
+| UI-02 | Phase 6 | Pending |
+| UI-03 | Phase 6 | Pending |
+| UI-04 | Phase 6 | Pending |
+| CLAU-01 | Phase 6 | Pending |
+| CLAU-02 | Phase 6 | Pending |
+| CLAU-03 | Phase 6 | Pending |
+| CLAU-04 | Phase 6 | Pending |
 
 **Coverage:**
-- v2.0 requirements: 22 total
-- Mapped to phases: 0
-- Unmapped: 22 ⚠️
+- v2.0 requirements: 25 total
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-14 (v1.0), updated 2026-03-15 (v2.0)*
-*Last updated: 2026-03-15 after v2.0 requirements definition*
+*Last updated: 2026-03-15 after v2.0 roadmap creation*

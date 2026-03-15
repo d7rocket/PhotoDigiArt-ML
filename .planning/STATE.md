@@ -5,9 +5,9 @@ milestone_name: Make It Alive
 status: active
 stopped_at: null
 last_updated: "2026-03-15"
-last_activity: 2026-03-15 -- Milestone v2.0 started
+last_activity: 2026-03-15 -- v2.0 roadmap created, ready to plan Phase 4
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,22 +20,24 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-03-15)
 
-**Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
-**Current focus:** v2.0 — Make It Alive
+**Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, living 3D sculptures.
+**Current focus:** Phase 4 - Stable Physics (v2.0 Make It Alive)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-03-15 — Milestone v2.0 started
+Phase: 4 of 6 (Stable Physics)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-15 -- v2.0 roadmap created
+
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: —
+- Total plans completed: 0 (v2.0)
+- Average duration: --
+- Total execution time: --
 
 ## Accumulated Context
 
@@ -44,16 +46,11 @@ Last activity: 2026-03-15 — Milestone v2.0 started
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- [v1.0]: 3-phase coarse structure -- Foundation, Creative Sculpting, Discovery
-- [v1.0]: pygfx/wgpu for rendering, PySide6 for GUI, WGSL compute shaders for sim
-- [v1.0]: ONNX/DirectML for depth and CLIP models
-- [v1.0]: CPU spatial hash build on init/restart only (not per-frame GPU hash)
-- [v2.0]: User reports physics broken (particles just explode, no coherent forms)
-- [v2.0]: User reports depth maps low quality (unsaturated, limited colors)
-- [v2.0]: User reports UI needs complete rework
-- [v2.0]: User wants organic, living sculptures (waves, morphism)
-- [v2.0]: User open to tech stack changes if better alternatives exist
-- [v2.0]: Research fluid physics engines before committing to approach
+- [v2.0 Research]: Keep entire v1.0 stack -- problems are physics bugs, not technology choices
+- [v2.0 Research]: Replace SPH with PBF solver -- unconditionally stable for real-time GPU particle art
+- [v2.0 Research]: No second GPU compute framework -- expand existing WGSL compute shaders, zero-copy buffer sharing
+- [v2.0 Research]: "Alive formula" = home attraction + curl noise + vortex confinement + velocity-dependent damping
+- [v2.0 Roadmap]: 3 phases (coarse) -- Physics first, then Rendering+Depth, then UI+Claude
 
 ### Pending Todos
 
@@ -61,12 +58,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [v1.0 carry-over]: ROCm on Windows is functional but young — must validate GPU paths
-- [v2.0]: Current particle sim forces don't produce coherent forms — needs fundamental rework
-- [v2.0]: Tech stack evaluation needed before committing to implementation approach
+- AMD RDNA 4 compute driver maturity -- test PBF solver on target hardware immediately after implementation
+- GPU buffer sharing between wgpu compute and pygfx render -- exact API needs prototyping (MEDIUM confidence)
+- PBF tuning for artistic vs. physically accurate results -- needs experimentation
 
 ## Session Continuity
 
 Last session: 2026-03-15
-Stopped at: Milestone v2.0 initialization
+Stopped at: v2.0 roadmap created, ready to plan Phase 4
 Resume file: None

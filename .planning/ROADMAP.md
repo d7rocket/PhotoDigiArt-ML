@@ -1,8 +1,9 @@
 # Roadmap: Apollo 7
 
-## Overview
+## Milestones
 
-Apollo 7 transforms photographs into explorable 3D data sculptures. The roadmap delivers this in three phases: first proving the end-to-end pipeline (photo in, point cloud out, interactive viewport), then adding the creative sculpting tools that make it usable for art (particles, fluid sim, parameter controls, export), and finally building the differentiating intelligence layer (semantic understanding, collection analysis, discovery mode, Claude API).
+- [x] **v1.0 MVP** - Phases 1-3 (shipped 2026-03-14)
+- [ ] **v2.0 Make It Alive** - Phases 4-6 (in progress)
 
 ## Phases
 
@@ -12,82 +13,89 @@ Apollo 7 transforms photographs into explorable 3D data sculptures. The roadmap 
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [x] **Phase 1: Pipeline Foundation** - Photo to point cloud to interactive 3D viewport in a desktop GUI (completed 2026-03-14)
-- [x] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export (gap closure in progress) (completed 2026-03-14)
-- [ ] **Phase 3: Discovery and Intelligence** - Semantic extraction, collection analysis, discovery mode, Claude API
+<details>
+<summary>v1.0 MVP (Phases 1-3) - SHIPPED 2026-03-14</summary>
 
-## Phase Details
+- [x] **Phase 1: Pipeline Foundation** - Photo to point cloud to interactive 3D viewport in a desktop GUI (completed 2026-03-14)
+- [x] **Phase 2: Creative Sculpting** - Particles, fluid sim, parameter controls, depth, save/load, export (completed 2026-03-14)
+- [x] **Phase 3: Discovery and Intelligence** - Semantic extraction, collection analysis, discovery mode, Claude API (completed 2026-03-15)
 
 ### Phase 1: Pipeline Foundation
 **Goal**: User can load photos, see extracted features, and explore a 3D point cloud sculpture in a real-time desktop viewport
 **Depends on**: Nothing (first phase)
 **Requirements**: INGEST-01, INGEST-02, INGEST-03, EXTRACT-01, EXTRACT-02, EXTRACT-03, RENDER-01, RENDER-02, RENDER-03, APP-01, APP-02, APP-03, APP-04
-**Success Criteria** (what must be TRUE):
-  1. User can drag-drop or browse to load a single photo or a folder of photos, with progress feedback during batch ingestion
-  2. User can view extracted color palettes, edge maps, and depth maps for any ingested photo
-  3. User sees a 3D point cloud generated from extracted features, rendered in a real-time viewport with orbit, zoom, and pan at 30+ FPS
-  4. Point cloud rendering supports configurable point size, color mapping, opacity, and additive blending
-  5. The application runs on Windows 11 with AMD RX 9060 XT (no CUDA), UI stays responsive during long extraction runs
 **Plans:** 5/5 plans complete
-
-Plans:
-- [x] 01-01-PLAN.md — Project setup, GUI skeleton, and embedded pygfx 3D viewport with test points
-- [x] 01-02-PLAN.md — Photo ingestion (single + batch), library panel, and progress feedback
-- [x] 01-03-PLAN.md — Color and edge extraction with pluggable interface and feature strip
-- [x] 01-04-PLAN.md — Depth extraction via ONNX/DirectML and point cloud generation
-- [x] 01-05-PLAN.md — End-to-end integration: progressive build, controls, multi-photo support
 
 ### Phase 2: Creative Sculpting
 **Goal**: User can sculpt, animate, and export visually stunning data sculptures with full parameter control
 **Depends on**: Phase 1
 **Requirements**: EXTRACT-05, RENDER-04, RENDER-05, RENDER-06, SIM-01, SIM-02, SIM-03, SIM-04, CTRL-01, CTRL-03, CTRL-04, CTRL-05, CTRL-06
-**Success Criteria** (what must be TRUE):
-  1. User can inspect all extracted features per photo (color palette, edge map, depth map, semantic tags) in a unified feature viewer
-  2. GPU-computed particle systems with physically-based dynamics and flow field motion produce visually compelling, gallery-worthy output
-  3. User can tune every visual parameter via sliders and controls that update the viewport in real-time, with undo/redo on all changes
-  4. User can save/load full project state and export high-resolution still images with transparent background option
-  5. Presets can be saved, loaded, and organized -- heavy compute runs in background while viewport remains smooth for exploration
 **Plans:** 8/8 plans complete
 
-Plans:
-- [x] 02-01-PLAN.md — GPU particle simulation engine with WGSL compute shaders (all 4 force types, SPH, flow fields)
-- [x] 02-02-PLAN.md — Feature viewer panel and undo/redo system with slider debouncing
-- [x] 02-03-PLAN.md — Simulation UI controls, FPS counter, simulate button, viewport wiring
-- [x] 02-04-PLAN.md — Post-processing effects (bloom, DoF, SSAO, alpha trails)
-- [x] 02-05-PLAN.md — Save/load projects, high-res PNG export, preset library
-- [x] 02-06-PLAN.md — End-to-end creative sculpting verification checkpoint
-- [ ] 02-07-PLAN.md — Gap closure: wire forces + SPH compute pipelines into engine
-- [ ] 02-08-PLAN.md — Gap closure: fix stale tests for all-visual param classification
-
 ### Phase 3: Discovery and Intelligence
-**Goal**: The system understands photo content semantically, reveals collection-level patterns, and proposes creative directions -- turning Apollo 7 from a tool into a creative collaborator
+**Goal**: The system understands photo content semantically, reveals collection-level patterns, and proposes creative directions
 **Depends on**: Phase 2
 **Requirements**: EXTRACT-04, COLL-01, COLL-02, COLL-03, RENDER-07, CTRL-02, CTRL-07, DISC-01, DISC-02, DISC-03, DISC-04
+**Plans:** 7/7 plans complete
+
+</details>
+
+## v2.0 Make It Alive
+
+**Milestone Goal:** Transform the rough v1.0 prototype into a product that produces organic, living data sculptures -- fix physics so particles form coherent shapes, make rendering gallery-quality, polish the UI, and let Claude drive creative direction.
+
+- [ ] **Phase 4: Stable Physics** - PBF solver, home positions, force balance, and organic motion forces
+- [ ] **Phase 5: Visual Quality** - Gallery-quality rendering, GPU performance, smooth transitions, and depth map fixes
+- [ ] **Phase 6: Interface and Intelligence** - Polished UI rework and Claude-driven creative direction
+
+## Phase Details
+
+### Phase 4: Stable Physics
+**Goal**: Particles form coherent, organic, living shapes that sustain indefinitely instead of exploding into chaos
+**Depends on**: Phase 3 (v1.0 complete)
+**Requirements**: PHYS-01, PHYS-02, PHYS-03, PHYS-04, PHYS-05, PHYS-06, PHYS-07, PHYS-08, PHYS-09
 **Success Criteria** (what must be TRUE):
-  1. Pipeline extracts semantic features (objects, scenes, mood) from photos via local CLIP/BLIP models, and user can view semantic tags alongside other features
-  2. User can visualize collection-level patterns (clustering, trends, outliers in embedding space) and those patterns feed into sculpture generation
-  3. Discovery mode proposes compositions from extracted data with a "more/less like this" feedback loop, all running locally without API
-  4. User can route extracted features to visual parameters through a mapping editor, and smoothly interpolate between saved presets
-  5. Optional Claude API integration enriches photo annotation and suggests creative mappings, but all core functionality works fully offline
+  1. Particles maintain a recognizable sculptural form derived from source photo geometry for 1000+ frames without dispersing, collapsing, or exploding
+  2. User can adjust solver iterations and see the simulation character change from wispy gas (1 iteration) to cohesive liquid (4+ iterations) in real-time
+  3. Sculptures exhibit organic, living motion -- visible flowing, swirling, and breathing behavior without any user interaction
+  4. Simulation runs at 60fps with 500K+ particles on the RX 9060 XT without GPU timeout (TDR) errors
+  5. Force and velocity values remain bounded -- no NaN, Inf, or runaway acceleration under any parameter combination
+**Plans**: TBD
 
-**Plans:** 5/7 plans executed
+### Phase 5: Visual Quality
+**Goal**: Sculptures look like gallery-worthy art with smooth, luminous rendering and the pipeline handles 1M+ particles without CPU bottleneck
+**Depends on**: Phase 4
+**Requirements**: REND-01, REND-02, REND-03, REND-04, REND-05, REND-06, DPTH-01, DPTH-02
+**Success Criteria** (what must be TRUE):
+  1. Particles render as soft, round, glowing points with additive blending that creates luminous clusters -- not hard squares
+  2. Viewport defaults to white background and bloom/glow post-processing is visible on particle clusters
+  3. Changing any simulation or visual parameter crossfades smoothly over ~0.5 seconds instead of popping instantly
+  4. Rendering sustains 60fps at 1M+ particles by sharing GPU buffers directly between compute and render (no CPU readback)
+  5. Depth maps extracted from photos show full contrast and color saturation via CLAHE post-processing
+**Plans**: TBD
 
-Plans:
-- [ ] 03-01-PLAN.md — CLIP semantic extraction with mood/object tags and feature viewer integration
-- [ ] 03-02-PLAN.md — Parameter animation (LFO/noise/envelope) and preset crossfade interpolation
-- [ ] 03-03-PLAN.md — Feature-to-visual mapping editor (node-wire patch bay) and evaluation engine
-- [ ] 03-04-PLAN.md — Collection analysis (DBSCAN/UMAP), embedding cloud, and cluster force attractors
-- [ ] 03-05-PLAN.md — Discovery mode with random walk, dimensional sliders, and visual history strip
-- [ ] 03-06-PLAN.md — Claude API enrichment service with offline-first guarantee
-- [ ] 03-07-PLAN.md — End-to-end integration wiring and verification checkpoint
+### Phase 6: Interface and Intelligence
+**Goal**: The application looks and feels polished with logical controls, and Claude can analyze photos to suggest parameter sets that produce compelling sculptures
+**Depends on**: Phase 5
+**Requirements**: UI-01, UI-02, UI-03, UI-04, CLAU-01, CLAU-02, CLAU-03, CLAU-04
+**Success Criteria** (what must be TRUE):
+  1. UI has clean visual hierarchy with qt-material theming -- 6 essential sliders visible by default, advanced parameters collapsed but accessible
+  2. Parameter presets show visual thumbnails and can be selected to instantly configure the sculpture
+  3. User can click a button to have Claude analyze the loaded photo(s) and receive a suggested parameter set with artistic rationale
+  4. Claude-suggested parameters apply via smooth crossfade into the viewport, and user can iterate with "more/less like this" refinement
+  5. All Claude features work asynchronously -- the viewport never freezes during API calls, and core functionality works fully offline
+**Plans**: TBD
 
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3
+Phases execute in numeric order: 4 -> 5 -> 6
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 1. Pipeline Foundation | 5/5 | Complete    | 2026-03-14 |
-| 2. Creative Sculpting | 8/8 | Complete   | 2026-03-14 |
-| 3. Discovery and Intelligence | 5/7 | In Progress|  |
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Pipeline Foundation | v1.0 | 5/5 | Complete | 2026-03-14 |
+| 2. Creative Sculpting | v1.0 | 8/8 | Complete | 2026-03-14 |
+| 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
+| 4. Stable Physics | v2.0 | 0/TBD | Not started | - |
+| 5. Visual Quality | v2.0 | 0/TBD | Not started | - |
+| 6. Interface and Intelligence | v2.0 | 0/TBD | Not started | - |
