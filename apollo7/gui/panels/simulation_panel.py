@@ -84,6 +84,7 @@ class SimulationPanel(QtWidgets.QWidget):
     param_changed = QtCore.Signal(str, float)  # (param_name, new_value)
     section_reset = QtCore.Signal(str)  # section name
     reset_all = QtCore.Signal()
+    reset_camera_clicked = QtCore.Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -130,6 +131,10 @@ class SimulationPanel(QtWidgets.QWidget):
         self.chk_performance = QtWidgets.QCheckBox("Performance Mode")
         self.chk_performance.setToolTip("Reduce sim quality for smooth interaction")
         ctrl_layout.addWidget(self.chk_performance)
+
+        self.btn_reset_camera = QtWidgets.QPushButton("Reset Camera")
+        self.btn_reset_camera.setObjectName("btn-reset-camera")
+        ctrl_layout.addWidget(self.btn_reset_camera)
 
         # Control sliders (speed, turbulence)
         for spec in _CONTROL_SLIDERS:
@@ -229,6 +234,7 @@ class SimulationPanel(QtWidgets.QWidget):
         self.btn_simulate.clicked.connect(self.simulate_clicked)
         self.btn_pause.clicked.connect(self._on_pause_clicked)
         self.chk_performance.toggled.connect(self.performance_mode_changed)
+        self.btn_reset_camera.clicked.connect(self.reset_camera_clicked)
 
         # All sliders emit param_changed
         for param_name, (slider, val_label, spec) in self._sliders.items():

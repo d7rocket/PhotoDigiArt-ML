@@ -420,6 +420,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.simulation_panel.param_changed.connect(self._on_sim_param_changed)
         self.simulation_panel.section_reset.connect(self._on_section_reset)
         self.simulation_panel.reset_all.connect(self._on_reset_all_sim)
+        self.simulation_panel.reset_camera_clicked.connect(
+            lambda: self.viewport.reset_camera()
+        )
 
         # --- Keyboard shortcuts ---
         # Space: toggle pause/resume simulation
@@ -1046,7 +1049,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _evaluate_mapping_graph(self) -> None:
         """Evaluate current mapping graph against latest feature data and apply results."""
-        if not self._mapping_graph.connections:
+        if not self._mapping_graph.get_connections():
             return
         if not self._extraction_results:
             return
@@ -1184,7 +1187,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 pass
 
         # Phase 3 state
-        mapping_graph_dict = self._mapping_graph.to_dict() if self._mapping_graph.connections else None
+        mapping_graph_dict = self._mapping_graph.to_dict() if self._mapping_graph.get_connections() else None
         discovery_dims = self.discovery_panel.get_dimension_values()
 
         return ProjectState(

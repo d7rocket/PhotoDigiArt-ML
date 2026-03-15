@@ -100,6 +100,7 @@ class ViewportWidget(QtWidgets.QWidget):
 
         # Simulation engine (None until Simulate is clicked)
         self._sim_engine = None
+        self._sim_cloud: gfx.Points | None = None  # merged cloud driven by sim
 
         # Embedding cloud manager (None until collection analysis runs)
         self._embedding_cloud_manager = None
@@ -308,6 +309,10 @@ class ViewportWidget(QtWidgets.QWidget):
             pass
         self._camera_controller.set_three_quarter_view()
 
+    def reset_camera(self):
+        """Reset camera to default position framing the scene."""
+        self.auto_frame()
+
     # ------------------------------------------------------------------
     # Post-processing effects
     # ------------------------------------------------------------------
@@ -376,6 +381,17 @@ class ViewportWidget(QtWidgets.QWidget):
     # Simulation engine integration
     # ------------------------------------------------------------------
 
+    def _cleanup_sim_cloud(self) -> None:
+        """Remove the previous sim cloud and restore photo cloud visibility."""
+        if self._sim_cloud is not None:
+            self._scene.remove(self._sim_cloud)
+            if self._sim_cloud in self._point_objects:
+                self._point_objects.remove(self._sim_cloud)
+            self._sim_cloud = None
+        # Restore photo cloud visibility
+        for pts in self._photo_clouds.values():
+            pts.visible = True
+
     def init_simulation(
         self,
         positions: np.ndarray,
@@ -386,6 +402,7 @@ class ViewportWidget(QtWidgets.QWidget):
 
         Creates a SimulationEngine using the renderer's wgpu device,
         uploads initial state, and prepares compute pipelines.
+        Hides individual photo clouds and creates a single merged sim cloud.
 
         Args:
             positions: (N, 3) float32 array of XYZ positions.
@@ -393,6 +410,17 @@ class ViewportWidget(QtWidgets.QWidget):
             feature_textures: Optional dict with "edge_map" and/or "depth_map".
         """
         from apollo7.simulation.engine import SimulationEngine
+
+        # Clean up any previous sim cloud
+        self._cleanup_sim_cloud()
+
+        # Hide individual photo clouds — sim cloud replaces them visually
+        for pts in self._photo_clouds.values():
+            pts.visible = False
+
+        # Create a single merged sim cloud
+        sizes = np.full(len(positions), self._current_point_size, dtype=np.float32)
+        self._sim_cloud = self.add_points(positions.astype(np.float32), colors.astype(np.float32), sizes)
 
         device = self._renderer.device
         self._sim_engine = SimulationEngine(device)
@@ -464,14 +492,12 @@ class ViewportWidget(QtWidgets.QWidget):
         Falls back to CPU readback + re-upload for prototype compatibility.
         Direct buffer sharing can be optimized later.
         """
-        if self._sim_engine is None or not self._point_objects:
+        if self._sim_engine is None or self._sim_cloud is None:
             return
 
         try:
             positions = self._sim_engine._particle_buffer.read_positions()
-            # Update the first (primary) point cloud geometry
-            pts = self._point_objects[0]
-            geo = pts.geometry
+            geo = self._sim_cloud.geometry
             geo.positions = gfx.Buffer(positions.astype(np.float32))
         except Exception as exc:
             logger.debug("Failed to update points from sim: %s", exc)

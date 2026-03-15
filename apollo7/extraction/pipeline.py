@@ -64,8 +64,12 @@ class ExtractionPipeline:
                     results[name] = cached
                     continue
 
-            # Extract
-            result = extractor.extract(image)
+            # Extract — continue on failure so partial results are usable
+            try:
+                result = extractor.extract(image)
+            except Exception as exc:
+                logger.warning("Extractor %s failed: %s", name, exc)
+                continue
             results[name] = result
 
             # Store in cache

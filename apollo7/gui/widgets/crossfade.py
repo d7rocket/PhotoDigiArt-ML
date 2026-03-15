@@ -94,19 +94,21 @@ class CrossfadeWidget(QtWidgets.QWidget):
             }}
         """)
 
-        layout = QtWidgets.QHBoxLayout(self)
+        layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
-        layout.setSpacing(8)
+        layout.setSpacing(4)
 
-        # Preset A
+        # Preset A row
+        row_a = QtWidgets.QHBoxLayout()
         label_a = QtWidgets.QLabel("A")
         label_a.setStyleSheet(f"color: {_ACCENT};")
         label_a.setFixedWidth(14)
-        layout.addWidget(label_a)
-
+        row_a.addWidget(label_a)
         self._combo_a = QtWidgets.QComboBox()
+        self._combo_a.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._combo_a.currentIndexChanged.connect(self._on_preset_a_changed)
-        layout.addWidget(self._combo_a)
+        row_a.addWidget(self._combo_a)
+        layout.addLayout(row_a)
 
         # Slider
         self._slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
@@ -115,17 +117,19 @@ class CrossfadeWidget(QtWidgets.QWidget):
         self._slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
         self._slider.setTickInterval(10)
         self._slider.valueChanged.connect(self._on_slider_changed)
-        layout.addWidget(self._slider, 1)
+        layout.addWidget(self._slider)
 
-        # Preset B
+        # Preset B row
+        row_b = QtWidgets.QHBoxLayout()
         label_b = QtWidgets.QLabel("B")
         label_b.setStyleSheet(f"color: {_ACCENT};")
         label_b.setFixedWidth(14)
-        layout.addWidget(label_b)
-
+        row_b.addWidget(label_b)
         self._combo_b = QtWidgets.QComboBox()
+        self._combo_b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed)
         self._combo_b.currentIndexChanged.connect(self._on_preset_b_changed)
-        layout.addWidget(self._combo_b)
+        row_b.addWidget(self._combo_b)
+        layout.addLayout(row_b)
 
     def _populate_combos(self) -> None:
         """Fill both combo boxes from PresetManager.list_presets()."""
