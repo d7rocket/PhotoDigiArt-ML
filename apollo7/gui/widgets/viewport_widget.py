@@ -101,6 +101,9 @@ class ViewportWidget(QtWidgets.QWidget):
         # Simulation engine (None until Simulate is clicked)
         self._sim_engine = None
 
+        # Embedding cloud manager (None until collection analysis runs)
+        self._embedding_cloud_manager = None
+
         # FPS counter overlay
         self._fps_counter = FPSCounter(self)
         self._fps_counter.raise_()
@@ -472,3 +475,60 @@ class ViewportWidget(QtWidgets.QWidget):
             geo.positions = gfx.Buffer(positions.astype(np.float32))
         except Exception as exc:
             logger.debug("Failed to update points from sim: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Embedding cloud integration
+    # ------------------------------------------------------------------
+
+    def update_embedding_cloud(self, result) -> None:
+        """Update the embedding cloud visualization with new analysis results.
+
+        Creates an EmbeddingCloudManager if one doesn't exist yet.
+
+        Args:
+            result: CollectionResult from CollectionAnalyzer.analyze().
+        """
+        from apollo7.collection.embedding_cloud import EmbeddingCloudManager
+
+        if self._embedding_cloud_manager is None:
+            self._embedding_cloud_manager = EmbeddingCloudManager(self)
+
+        self._embedding_cloud_manager.update(result)
+
+    def toggle_embedding_cloud(self) -> None:
+        """Toggle visibility of the embedding cloud overlay."""
+        if self._embedding_cloud_manager is not None:
+            self._embedding_cloud_manager.toggle_visibility()
+
+    def handle_embedding_click(self, cluster_id: int, result) -> None:
+        """Handle click on an embedding cloud point.
+
+        First click on a cluster isolates it (dims others).
+        Second click on the same cluster or any click when isolated
+        clears the isolation.
+
+        Args:
+            cluster_id: Cluster ID of the clicked point.
+            result: CollectionResult for path lookup.
+        """
+        if self._embedding_cloud_manager is None:
+            return
+
+        mgr = self._embedding_cloud_manager
+        if mgr.isolated_cluster == cluster_id:
+            # Same cluster clicked again -- clear isolation
+            mgr.clear_isolation()
+        elif mgr.isolated_cluster is not None:
+            # Different cluster -- switch isolation
+            mgr.clear_isolation()
+            if cluster_id >= 0:
+                mgr.isolate_cluster(cluster_id, result)
+        else:
+            # No isolation active -- isolate clicked cluster
+            if cluster_id >= 0:
+                mgr.isolate_cluster(cluster_id, result)
+
+    @property
+    def embedding_cloud_manager(self):
+        """Access the EmbeddingCloudManager instance, if any."""
+        return self._embedding_cloud_manager
