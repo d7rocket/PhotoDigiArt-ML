@@ -1,81 +1,68 @@
-"""Simulation controls panel with collapsible sections for force/speed/turbulence sliders.
+"""Simulation controls panel with PBF-oriented sliders and cohesion crossfade.
 
-Provides all user-facing controls for the particle simulation engine.
-Organized in collapsible QGroupBox sections with per-section reset buttons.
+Provides all user-facing controls for the PBF particle simulation engine.
+Essential sliders (Cohesion, Home Strength, Flow Intensity, Breathing Rate)
+are always visible. Advanced sliders are in a collapsible section.
+
+Cohesion slider (solver_iterations) uses crossfade interpolation over ~0.5s
+to smooth transitions between iteration counts.
 """
 
 from __future__ import annotations
 
+import time as _time
+
 from PySide6 import QtCore, QtWidgets
 
 from apollo7.config.settings import (
-    SIM_ATTRACTION_DEFAULT,
-    SIM_ATTRACTION_RANGE,
-    SIM_GRAVITY_Y_DEFAULT,
-    SIM_GRAVITY_Y_RANGE,
-    SIM_NOISE_AMP_DEFAULT,
-    SIM_NOISE_AMP_RANGE,
-    SIM_NOISE_FREQ_DEFAULT,
-    SIM_NOISE_FREQ_RANGE,
-    SIM_NOISE_OCTAVES_DEFAULT,
-    SIM_NOISE_OCTAVES_RANGE,
-    SIM_PRESSURE_DEFAULT,
-    SIM_PRESSURE_RANGE,
-    SIM_REPULSION_DEFAULT,
-    SIM_REPULSION_RADIUS_DEFAULT,
-    SIM_REPULSION_RADIUS_RANGE,
-    SIM_REPULSION_RANGE,
-    SIM_SPEED_DEFAULT,
-    SIM_SPEED_RANGE,
-    SIM_SURFACE_TENSION_DEFAULT,
-    SIM_SURFACE_TENSION_RANGE,
-    SIM_TURBULENCE_DEFAULT,
-    SIM_TURBULENCE_RANGE,
-    SIM_VISCOSITY_DEFAULT,
-    SIM_VISCOSITY_RANGE,
-    SIM_WIND_DEFAULT,
-    SIM_WIND_RANGE,
+    SIM_BREATHING_DEPTH_DEFAULT,
+    SIM_BREATHING_DEPTH_RANGE,
+    SIM_BREATHING_RATE_DEFAULT,
+    SIM_BREATHING_RATE_RANGE,
+    SIM_COHESION_DEFAULT,
+    SIM_COHESION_RANGE,
+    SIM_DAMPING_DEFAULT,
+    SIM_DAMPING_RANGE,
+    SIM_FLOW_INTENSITY_DEFAULT,
+    SIM_FLOW_INTENSITY_RANGE,
+    SIM_FLOW_SCALE_DEFAULT,
+    SIM_FLOW_SCALE_RANGE,
+    SIM_HOME_STRENGTH_DEFAULT,
+    SIM_HOME_STRENGTH_RANGE,
+    SIM_SMOOTHING_DEFAULT,
+    SIM_SMOOTHING_RANGE,
+    SIM_SWIRL_DEFAULT,
+    SIM_SWIRL_RANGE,
 )
 
+# Crossfade duration in seconds for cohesion transitions
+_CROSSFADE_DURATION = 0.5
 
 # Slider spec: (param_name, label, min, max, default, format_str, is_integer)
-_CONTROL_SLIDERS = [
-    ("speed", "Speed", *SIM_SPEED_RANGE, SIM_SPEED_DEFAULT, "{:.1f}", False),
-    ("turbulence_scale", "Turbulence", *SIM_TURBULENCE_RANGE, SIM_TURBULENCE_DEFAULT, "{:.1f}", False),
+_ESSENTIAL_SLIDERS = [
+    ("solver_iterations", "Cohesion", *SIM_COHESION_RANGE, SIM_COHESION_DEFAULT, "{:d}", True),
+    ("home_strength", "Home Strength", *SIM_HOME_STRENGTH_RANGE, SIM_HOME_STRENGTH_DEFAULT, "{:.1f}", False),
+    ("noise_amplitude", "Flow Intensity", *SIM_FLOW_INTENSITY_RANGE, SIM_FLOW_INTENSITY_DEFAULT, "{:.2f}", False),
+    ("breathing_rate", "Breathing Rate", *SIM_BREATHING_RATE_RANGE, SIM_BREATHING_RATE_DEFAULT, "{:.2f}", False),
 ]
 
-_FLOW_SLIDERS = [
-    ("noise_frequency", "Noise Frequency", *SIM_NOISE_FREQ_RANGE, SIM_NOISE_FREQ_DEFAULT, "{:.2f}", False),
-    ("noise_amplitude", "Noise Amplitude", *SIM_NOISE_AMP_RANGE, SIM_NOISE_AMP_DEFAULT, "{:.2f}", False),
-    ("noise_octaves", "Noise Octaves", *SIM_NOISE_OCTAVES_RANGE, SIM_NOISE_OCTAVES_DEFAULT, "{:d}", True),
+_ADVANCED_SLIDERS = [
+    ("noise_frequency", "Flow Scale", *SIM_FLOW_SCALE_RANGE, SIM_FLOW_SCALE_DEFAULT, "{:.2f}", False),
+    ("vorticity_epsilon", "Swirl", *SIM_SWIRL_RANGE, SIM_SWIRL_DEFAULT, "{:.3f}", False),
+    ("xsph_c", "Smoothing", *SIM_SMOOTHING_RANGE, SIM_SMOOTHING_DEFAULT, "{:.3f}", False),
+    ("damping", "Damping", *SIM_DAMPING_RANGE, SIM_DAMPING_DEFAULT, "{:.3f}", False),
+    ("breathing_amplitude", "Breathing Depth", *SIM_BREATHING_DEPTH_RANGE, SIM_BREATHING_DEPTH_DEFAULT, "{:.2f}", False),
 ]
 
-_FORCES_SLIDERS = [
-    ("attraction_strength", "Attraction", *SIM_ATTRACTION_RANGE, SIM_ATTRACTION_DEFAULT, "{:.2f}", False),
-    ("repulsion_strength", "Repulsion", *SIM_REPULSION_RANGE, SIM_REPULSION_DEFAULT, "{:.2f}", False),
-    ("repulsion_radius", "Repulsion Radius", *SIM_REPULSION_RADIUS_RANGE, SIM_REPULSION_RADIUS_DEFAULT, "{:.3f}", False),
-    ("gravity_y", "Gravity Y", *SIM_GRAVITY_Y_RANGE, SIM_GRAVITY_Y_DEFAULT, "{:.2f}", False),
-    ("wind_x", "Wind X", *SIM_WIND_RANGE, SIM_WIND_DEFAULT, "{:.2f}", False),
-    ("wind_z", "Wind Z", *SIM_WIND_RANGE, SIM_WIND_DEFAULT, "{:.2f}", False),
-]
-
-_FLUID_SLIDERS = [
-    ("viscosity", "Viscosity", *SIM_VISCOSITY_RANGE, SIM_VISCOSITY_DEFAULT, "{:.3f}", False),
-    ("pressure_strength", "Pressure", *SIM_PRESSURE_RANGE, SIM_PRESSURE_DEFAULT, "{:.2f}", False),
-    ("surface_tension", "Surface Tension", *SIM_SURFACE_TENSION_RANGE, SIM_SURFACE_TENSION_DEFAULT, "{:.4f}", False),
-]
-
-# Section name -> slider specs
+# Section name -> slider specs (used for reset)
 _SECTIONS = {
-    "control": _CONTROL_SLIDERS,
-    "flow": _FLOW_SLIDERS,
-    "forces": _FORCES_SLIDERS,
-    "fluid": _FLUID_SLIDERS,
+    "essential": _ESSENTIAL_SLIDERS,
+    "advanced": _ADVANCED_SLIDERS,
 }
 
 
 class SimulationPanel(QtWidgets.QWidget):
-    """Simulation controls panel with collapsible sections."""
+    """Simulation controls panel with PBF-specific sliders and crossfade."""
 
     # Signals
     simulate_clicked = QtCore.Signal()
@@ -92,6 +79,12 @@ class SimulationPanel(QtWidgets.QWidget):
 
         # Slider references: {param_name: (slider, label_widget, spec)}
         self._sliders: dict[str, tuple[QtWidgets.QSlider, QtWidgets.QLabel, tuple]] = {}
+
+        # Crossfade state for cohesion (solver_iterations)
+        self._crossfade_start_home: float | None = None
+        self._crossfade_target_home: float | None = None
+        self._crossfade_start_time: float | None = None
+        self._crossfade_target_iterations: int | None = None
 
         self._build_ui()
         self._connect_signals()
@@ -136,45 +129,50 @@ class SimulationPanel(QtWidgets.QWidget):
         self.btn_reset_camera.setObjectName("btn-reset-camera")
         ctrl_layout.addWidget(self.btn_reset_camera)
 
-        # Control sliders (speed, turbulence)
-        for spec in _CONTROL_SLIDERS:
-            self._add_slider(ctrl_layout, spec)
-
-        self.btn_reset_control = QtWidgets.QPushButton("Reset Simulation")
-        self.btn_reset_control.setObjectName("btn-reset-section")
-        ctrl_layout.addWidget(self.btn_reset_control)
-
         layout.addWidget(ctrl_group)
 
-        # -- Flow Field section --
-        flow_group = QtWidgets.QGroupBox("Flow Field")
-        flow_layout = QtWidgets.QVBoxLayout(flow_group)
-        for spec in _FLOW_SLIDERS:
-            self._add_slider(flow_layout, spec)
-        self.btn_reset_flow = QtWidgets.QPushButton("Reset Flow")
-        self.btn_reset_flow.setObjectName("btn-reset-section")
-        flow_layout.addWidget(self.btn_reset_flow)
-        layout.addWidget(flow_group)
+        # -- Essential PBF Controls (always visible) --
+        essential_group = QtWidgets.QGroupBox("PBF Controls")
+        essential_layout = QtWidgets.QVBoxLayout(essential_group)
 
-        # -- Forces section --
-        forces_group = QtWidgets.QGroupBox("Forces")
-        forces_layout = QtWidgets.QVBoxLayout(forces_group)
-        for spec in _FORCES_SLIDERS:
-            self._add_slider(forces_layout, spec)
-        self.btn_reset_forces = QtWidgets.QPushButton("Reset Forces")
-        self.btn_reset_forces.setObjectName("btn-reset-section")
-        forces_layout.addWidget(self.btn_reset_forces)
-        layout.addWidget(forces_group)
+        # Add cohesion label spectrum hint
+        cohesion_hint = QtWidgets.QLabel("Ethereal (1) \u2014\u2014\u2014 Liquid (6)")
+        cohesion_hint.setAlignment(QtCore.Qt.AlignCenter)
+        cohesion_hint.setStyleSheet("color: #888; font-size: 9px; font-style: italic;")
 
-        # -- Fluid (SPH) section --
-        fluid_group = QtWidgets.QGroupBox("Fluid (SPH)")
-        fluid_layout = QtWidgets.QVBoxLayout(fluid_group)
-        for spec in _FLUID_SLIDERS:
-            self._add_slider(fluid_layout, spec)
-        self.btn_reset_fluid = QtWidgets.QPushButton("Reset Fluid")
-        self.btn_reset_fluid.setObjectName("btn-reset-section")
-        fluid_layout.addWidget(self.btn_reset_fluid)
-        layout.addWidget(fluid_group)
+        for i, spec in enumerate(_ESSENTIAL_SLIDERS):
+            self._add_slider(essential_layout, spec)
+            # Insert cohesion hint after the first slider (Cohesion)
+            if i == 0:
+                essential_layout.addWidget(cohesion_hint)
+
+        self.btn_reset_essential = QtWidgets.QPushButton("Reset Controls")
+        self.btn_reset_essential.setObjectName("btn-reset-section")
+        essential_layout.addWidget(self.btn_reset_essential)
+
+        layout.addWidget(essential_group)
+
+        # -- Advanced PBF Controls (collapsible) --
+        self.advanced_group = QtWidgets.QGroupBox("Advanced")
+        self.advanced_group.setCheckable(True)
+        self.advanced_group.setChecked(False)
+        advanced_layout = QtWidgets.QVBoxLayout(self.advanced_group)
+
+        self._advanced_widget = QtWidgets.QWidget()
+        adv_inner_layout = QtWidgets.QVBoxLayout(self._advanced_widget)
+        adv_inner_layout.setContentsMargins(0, 0, 0, 0)
+
+        for spec in _ADVANCED_SLIDERS:
+            self._add_slider(adv_inner_layout, spec)
+
+        self.btn_reset_advanced = QtWidgets.QPushButton("Reset Advanced")
+        self.btn_reset_advanced.setObjectName("btn-reset-section")
+        adv_inner_layout.addWidget(self.btn_reset_advanced)
+
+        advanced_layout.addWidget(self._advanced_widget)
+        self._advanced_widget.setVisible(False)
+
+        layout.addWidget(self.advanced_group)
 
         # -- Global reset --
         self.btn_reset_all = QtWidgets.QPushButton("Reset All")
@@ -242,12 +240,17 @@ class SimulationPanel(QtWidgets.QWidget):
                 lambda _val, s=slider, vl=val_label, sp=spec: self._on_slider_changed(s, vl, sp)
             )
 
+        # Advanced section collapse/expand
+        self.advanced_group.toggled.connect(self._on_advanced_toggled)
+
         # Section resets
-        self.btn_reset_control.clicked.connect(lambda: self._reset_section("control"))
-        self.btn_reset_flow.clicked.connect(lambda: self._reset_section("flow"))
-        self.btn_reset_forces.clicked.connect(lambda: self._reset_section("forces"))
-        self.btn_reset_fluid.clicked.connect(lambda: self._reset_section("fluid"))
+        self.btn_reset_essential.clicked.connect(lambda: self._reset_section("essential"))
+        self.btn_reset_advanced.clicked.connect(lambda: self._reset_section("advanced"))
         self.btn_reset_all.clicked.connect(self._on_reset_all)
+
+    def _on_advanced_toggled(self, checked: bool):
+        """Show/hide advanced controls."""
+        self._advanced_widget.setVisible(checked)
 
     def _on_slider_changed(self, slider, val_label, spec):
         """Handle slider value change."""
@@ -257,7 +260,50 @@ class SimulationPanel(QtWidgets.QWidget):
             val_label.setText(fmt.format(int(val)))
         else:
             val_label.setText(fmt.format(val))
-        self.param_changed.emit(param_name, float(val))
+
+        # For cohesion (solver_iterations), initiate crossfade
+        if param_name == "solver_iterations":
+            self._start_cohesion_crossfade(int(val))
+        else:
+            self.param_changed.emit(param_name, float(val))
+
+    def _start_cohesion_crossfade(self, target_iterations: int):
+        """Start crossfade for cohesion slider change.
+
+        Snaps solver_iterations immediately (it's discrete) but crossfades
+        home_strength slightly to smooth the visual transition.
+        """
+        # Emit the solver_iterations change immediately (discrete)
+        self.param_changed.emit("solver_iterations", float(target_iterations))
+
+        # Get current home_strength for crossfade
+        if "home_strength" in self._sliders:
+            slider, _, _ = self._sliders["home_strength"]
+            current_home = self._slider_value(slider)
+        else:
+            current_home = SIM_HOME_STRENGTH_DEFAULT
+
+        # Set crossfade state: briefly dip home_strength then restore
+        # This creates a smooth visual transition when cohesion changes
+        self._crossfade_target_iterations = target_iterations
+        self._crossfade_start_home = current_home
+        self._crossfade_target_home = current_home
+        self._crossfade_start_time = _time.monotonic()
+
+        # Briefly reduce home_strength by 20% to allow particles to shift
+        dipped_home = current_home * 0.8
+        self.param_changed.emit("home_strength", dipped_home)
+
+        # Use a timer to restore home_strength after crossfade duration
+        QtCore.QTimer.singleShot(
+            int(_CROSSFADE_DURATION * 1000),
+            lambda: self._finish_cohesion_crossfade(current_home),
+        )
+
+    def _finish_cohesion_crossfade(self, restore_home: float):
+        """Restore home_strength after cohesion crossfade."""
+        self.param_changed.emit("home_strength", restore_home)
+        self._crossfade_start_time = None
 
     def _on_pause_clicked(self):
         """Toggle pause text and emit signal."""

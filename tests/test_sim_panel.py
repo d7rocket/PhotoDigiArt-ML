@@ -1,4 +1,4 @@
-"""Tests for SimulationPanel and FPSCounter widgets."""
+"""Tests for SimulationPanel (PBF controls) and FPSCounter widgets."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def fps_counter(qapp):
 
 
 class TestSimulationPanel:
-    """Tests for SimulationPanel widget."""
+    """Tests for SimulationPanel widget with PBF controls."""
 
     def test_instantiation(self, panel):
         """SimulationPanel can be created without errors."""
@@ -55,49 +55,72 @@ class TestSimulationPanel:
         """Panel has a Performance Mode checkbox."""
         assert panel.chk_performance is not None
 
+    def test_has_pbf_essential_sliders(self, panel):
+        """Panel has PBF essential control sliders."""
+        assert "solver_iterations" in panel._sliders
+        assert "home_strength" in panel._sliders
+        assert "noise_amplitude" in panel._sliders
+        assert "breathing_rate" in panel._sliders
+
+    def test_has_pbf_advanced_sliders(self, panel):
+        """Panel has PBF advanced control sliders."""
+        assert "noise_frequency" in panel._sliders
+        assert "vorticity_epsilon" in panel._sliders
+        assert "xsph_c" in panel._sliders
+        assert "damping" in panel._sliders
+        assert "breathing_amplitude" in panel._sliders
+
+    def test_no_old_sph_sliders(self, panel):
+        """Panel does not have old SPH sliders."""
+        assert "viscosity" not in panel._sliders
+        assert "pressure_strength" not in panel._sliders
+        assert "surface_tension" not in panel._sliders
+        assert "attraction_strength" not in panel._sliders
+        assert "repulsion_strength" not in panel._sliders
+        assert "repulsion_radius" not in panel._sliders
+
     def test_param_changed_signal_emits_valid_names(self, panel):
         """Each slider emits param_changed with a name that exists in SimulationParams."""
-        # Collect all valid param names from SimulationParams
-        valid_visual = {
-            "noise_frequency", "noise_amplitude", "noise_octaves",
-            "turbulence_scale", "speed", "damping",
-        }
-        valid_physics = {
-            "viscosity", "pressure_strength", "surface_tension",
-            "attraction_strength", "repulsion_strength", "repulsion_radius",
-            "smoothing_radius", "rest_density", "gas_constant",
-            "gravity", "wind",
-        }
-        # Sim panel also uses sub-params for gravity/wind
-        valid_sub_params = {"gravity_y", "wind_x", "wind_z"}
-        all_valid = valid_visual | valid_physics | valid_sub_params
-
+        valid_visual = SimulationParams.is_visual_param
         emitted = []
         panel.param_changed.connect(lambda name, val: emitted.append(name))
 
-        # Change each slider
+        # Change each slider (skip solver_iterations as it triggers crossfade)
         for param_name, (slider, _, _) in panel._sliders.items():
+            if param_name == "solver_iterations":
+                continue
             current = slider.value()
             slider.setValue(current + 1 if current < 100 else current - 1)
 
-        # All emitted param names must be valid
         assert len(emitted) > 0, "No param_changed signals emitted"
         for name in emitted:
-            assert name in all_valid, f"Unknown param name: {name}"
+            assert valid_visual(name), f"Unknown visual param: {name}"
+
+    def test_cohesion_slider_emits_solver_iterations(self, panel):
+        """Cohesion slider emits solver_iterations param."""
+        emitted = []
+        panel.param_changed.connect(lambda name, val: emitted.append((name, val)))
+
+        slider, _, _ = panel._sliders["solver_iterations"]
+        current = slider.value()
+        slider.setValue(current + 10 if current < 90 else current - 10)
+
+        # Should emit solver_iterations (and possibly home_strength for crossfade)
+        iter_emits = [e for e in emitted if e[0] == "solver_iterations"]
+        assert len(iter_emits) >= 1, "Cohesion slider did not emit solver_iterations"
 
     def test_section_reset_emits_signal(self, panel):
         """Section reset buttons emit section_reset signal with section name."""
         emitted = []
         panel.section_reset.connect(lambda name: emitted.append(name))
 
-        panel.btn_reset_flow.click()
-        assert "flow" in emitted
+        panel.btn_reset_essential.click()
+        assert "essential" in emitted
 
-        panel.btn_reset_forces.click()
-        assert "forces" in emitted
-
-        panel.btn_reset_fluid.click()
-        assert "fluid" in emitted
+        # Advanced section must be checked (expanded) for its children to be enabled
+        panel.advanced_group.setChecked(True)
+        panel.btn_reset_advanced.click()
+        assert "advanced" in emitted
 
     def test_reset_all_emits_signal(self, panel):
         """Reset All button emits reset_all signal."""
@@ -125,12 +148,10 @@ class TestSimulationPanel:
         assert emitted[1] is False  # Second click resumes
 
     def test_slider_count(self, panel):
-        """Panel has the expected number of parameter sliders."""
-        # speed, turbulence_scale, noise_frequency, noise_amplitude,
-        # noise_octaves, attraction_strength, repulsion_strength,
-        # repulsion_radius, gravity_y, wind_x, wind_z,
-        # viscosity, pressure_strength, surface_tension
-        assert len(panel._sliders) == 14
+        """Panel has the expected number of PBF parameter sliders."""
+        # Essential: solver_iterations, home_strength, noise_amplitude, breathing_rate (4)
+        # Advanced: noise_frequency, vorticity_epsilon, xsph_c, damping, breathing_amplitude (5)
+        assert len(panel._sliders) == 9
 
     def test_set_simulation_running(self, panel):
         """set_simulation_running updates button states."""
@@ -141,6 +162,31 @@ class TestSimulationPanel:
         panel.set_simulation_running(False)
         assert not panel.btn_pause.isEnabled()
         assert panel.btn_simulate.text() == "Simulate"
+
+    def test_advanced_section_collapsed_by_default(self, panel):
+        """Advanced section is collapsed by default."""
+        assert not panel.advanced_group.isChecked()
+        # Widget is hidden (not visible to user)
+        assert panel._advanced_widget.isHidden()
+
+    def test_advanced_section_expands(self, panel):
+        """Advanced section can be expanded."""
+        panel.advanced_group.setChecked(True)
+        # Widget is no longer hidden (would be visible when parent is shown)
+        assert not panel._advanced_widget.isHidden()
+
+    def test_cohesion_slider_range(self, panel):
+        """Cohesion slider maps to integer range 1-6."""
+        slider, _, spec = panel._sliders["solver_iterations"]
+        # At min (tick 0) -> 1
+        slider.setValue(0)
+        val = panel._slider_value(slider)
+        assert val == 1
+
+        # At max (tick 100) -> 6
+        slider.setValue(100)
+        val = panel._slider_value(slider)
+        assert val == 6
 
 
 class TestFPSCounter:
