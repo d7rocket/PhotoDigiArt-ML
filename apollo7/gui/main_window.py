@@ -692,7 +692,7 @@ class MainWindow(QtWidgets.QMainWindow):
             # Look for CLIP embeddings in the semantic/clip extractor results
             for ext_name, result in features.items():
                 if hasattr(result, "data") and isinstance(result.data, dict):
-                    embedding = result.data.get("embedding")
+                    embedding = result.arrays.get("embedding") if hasattr(result, "arrays") and result.arrays else result.data.get("embedding")
                     if embedding is not None and isinstance(embedding, np.ndarray):
                         embeddings[path] = embedding
                         break
@@ -1121,7 +1121,7 @@ class MainWindow(QtWidgets.QMainWindow):
         Args:
             elapsed: Seconds since animation start.
         """
-        if not self._animator.bindings:
+        if not self._animator.is_active:
             return
         if self.viewport._sim_engine is None:
             return
