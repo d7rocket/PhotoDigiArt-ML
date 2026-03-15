@@ -11,8 +11,64 @@ import logging
 from PySide6 import QtCore, QtWidgets
 
 from apollo7.project.presets import PresetManager
+from apollo7.gui.widgets.crossfade import CrossfadeWidget
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Style constants
+# ---------------------------------------------------------------------------
+_ACCENT = "#0078FF"
+_BG_SECTION = "#242424"
+_BORDER = "#3a3a3a"
+
+
+class _Section(QtWidgets.QWidget):
+    """A collapsible section with a styled header and content area."""
+
+    def __init__(self, title: str, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Header label
+        self._header = QtWidgets.QLabel(f"  {title}")
+        self._header.setStyleSheet(f"""
+            QLabel {{
+                background: {_BG_SECTION};
+                color: {_ACCENT};
+                border: 1px solid {_BORDER};
+                border-radius: 4px;
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
+                padding: 6px 8px;
+                font-weight: 600;
+                font-size: 12px;
+            }}
+        """)
+        layout.addWidget(self._header)
+
+        # Content container
+        self._content = QtWidgets.QWidget()
+        self._content.setStyleSheet(f"""
+            QWidget {{
+                background: {_BG_SECTION};
+                border: 1px solid {_BORDER};
+                border-top: none;
+                border-bottom-left-radius: 4px;
+                border-bottom-right-radius: 4px;
+            }}
+        """)
+        self._content_layout = QtWidgets.QVBoxLayout(self._content)
+        self._content_layout.setContentsMargins(10, 8, 10, 8)
+        self._content_layout.setSpacing(6)
+        layout.addWidget(self._content)
+
+    @property
+    def content_layout(self) -> QtWidgets.QVBoxLayout:
+        """Layout for adding content widgets."""
+        return self._content_layout
 
 
 class PresetPanel(QtWidgets.QWidget):
@@ -22,6 +78,8 @@ class PresetPanel(QtWidgets.QWidget):
     preset_applied = QtCore.Signal(dict, dict)
     # Emitted when user wants to save current params as preset
     save_current_requested = QtCore.Signal()
+    # Emitted when crossfade slider changes: carries lerped preset dict
+    crossfade_changed = QtCore.Signal(dict)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -73,6 +131,25 @@ class PresetPanel(QtWidgets.QWidget):
 
         layout.addLayout(btn_row)
 
+        # Crossfade section
+        crossfade_section = _Section("Crossfade")
+        self._crossfade_widget = CrossfadeWidget(
+            preset_manager=self._manager, parent=self
+        )
+        self._crossfade_widget.crossfade_changed.connect(self._on_crossfade_changed)
+        crossfade_section.content_layout.addWidget(self._crossfade_widget)
+        layout.addWidget(crossfade_section)
+
+        # Push everything up
+        layout.addStretch()
+
+    def _on_crossfade_changed(self, lerped_preset: dict) -> None:
+        """Forward crossfade result through panel signal."""
+        sim_params = lerped_preset.get("sim_params", {})
+        postfx_params = lerped_preset.get("postfx_params", {})
+        self.preset_applied.emit(sim_params, postfx_params)
+        self.crossfade_changed.emit(lerped_preset)
+
     def _refresh(self) -> None:
         """Refresh category list and preset list from disk."""
         current_cat = self._category_combo.currentText()
@@ -87,6 +164,9 @@ class PresetPanel(QtWidgets.QWidget):
             self._category_combo.setCurrentIndex(idx)
         self._category_combo.blockSignals(False)
         self._on_category_changed(self._category_combo.currentText())
+        # Also refresh crossfade combo boxes
+        if hasattr(self, "_crossfade_widget"):
+            self._crossfade_widget.refresh_presets()
 
     def _on_category_changed(self, category: str) -> None:
         """Filter preset list by selected category."""
