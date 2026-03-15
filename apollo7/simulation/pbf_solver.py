@@ -423,7 +423,11 @@ class PBFSolver:
         self._correct_bgl = bgl
 
     def _build_finalize_pipeline(self) -> None:
-        """Build finalize compute pipeline."""
+        """Build finalize compute pipeline.
+
+        Finalize now includes vorticity confinement and XSPH which
+        require spatial hash buffers for neighbor search (7 bindings).
+        """
         wgpu = self._wgpu
         shader = self._device.create_shader_module(code=load_shader("pbf_finalize"))
 
@@ -436,6 +440,12 @@ class PBFSolver:
              "buffer": {"type": wgpu.BufferBindingType.storage}},
             {"binding": 3, "visibility": wgpu.ShaderStage.COMPUTE,
              "buffer": {"type": wgpu.BufferBindingType.uniform}},
+            {"binding": 4, "visibility": wgpu.ShaderStage.COMPUTE,
+             "buffer": {"type": wgpu.BufferBindingType.read_only_storage}},
+            {"binding": 5, "visibility": wgpu.ShaderStage.COMPUTE,
+             "buffer": {"type": wgpu.BufferBindingType.read_only_storage}},
+            {"binding": 6, "visibility": wgpu.ShaderStage.COMPUTE,
+             "buffer": {"type": wgpu.BufferBindingType.read_only_storage}},
         ])
         layout = self._device.create_pipeline_layout(bind_group_layouts=[bgl])
         self._finalize_pipeline = self._device.create_compute_pipeline(
@@ -607,7 +617,8 @@ fn add_block_sums(@builtin(global_invocation_id) gid: vec3<u32>,
             ],
         )
 
-        # Finalize: particles_in, predicted, particles_out, params
+        # Finalize: particles_in, predicted, particles_out, params,
+        #           cell_counts, cell_offsets, sorted_indices
         groups["finalize"] = self._device.create_bind_group(
             layout=self._finalize_bgl,
             entries=[
@@ -615,6 +626,9 @@ fn add_block_sums(@builtin(global_invocation_id) gid: vec3<u32>,
                 {"binding": 1, "resource": _res(pb.predicted_buffer)},
                 {"binding": 2, "resource": _res(output_buf)},
                 {"binding": 3, "resource": _res(pb.params_buffer)},
+                {"binding": 4, "resource": _res(pb.cell_counts_buffer)},
+                {"binding": 5, "resource": _res(pb.cell_offsets_buffer)},
+                {"binding": 6, "resource": _res(pb.sorted_indices_buffer)},
             ],
         )
 
