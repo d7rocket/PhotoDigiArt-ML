@@ -60,7 +60,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Sculptures exhibit organic, living motion -- visible flowing, swirling, and breathing behavior without any user interaction
   4. Simulation runs at 60fps with 500K+ particles on the RX 9060 XT without GPU timeout (TDR) errors
   5. Force and velocity values remain bounded -- no NaN, Inf, or runaway acceleration under any parameter combination
-**Plans**: TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 04-01-PLAN.md -- PBF parameters, buffer extensions, and test scaffolds
+- [ ] 04-02-PLAN.md -- PBF solver core: 7 WGSL shaders and PBFSolver orchestrator
+- [ ] 04-03-PLAN.md -- Engine integration: wire PBF, delete SPH, CFL timestep
+- [ ] 04-04-PLAN.md -- Organic motion: curl noise, vortex confinement, breathing
+- [ ] 04-05-PLAN.md -- Creative controls: solver iterations GUI, visual verification
 
 ### Phase 5: Visual Quality
 **Goal**: Sculptures look like gallery-worthy art with smooth, luminous rendering and the pipeline handles 1M+ particles without CPU bottleneck
@@ -96,6 +103,6 @@ Phases execute in numeric order: 4 -> 5 -> 6
 | 1. Pipeline Foundation | v1.0 | 5/5 | Complete | 2026-03-14 |
 | 2. Creative Sculpting | v1.0 | 8/8 | Complete | 2026-03-14 |
 | 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
-| 4. Stable Physics | v2.0 | 0/TBD | Not started | - |
+| 4. Stable Physics | v2.0 | 0/5 | Planning complete | - |
 | 5. Visual Quality | v2.0 | 0/TBD | Not started | - |
 | 6. Interface and Intelligence | v2.0 | 0/TBD | Not started | - |
