@@ -1,90 +1,102 @@
 # Requirements: Apollo 7
 
 **Defined:** 2026-03-14
-**Core Value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
+**Core Value:** Photos become data, data becomes art — the pipeline must faithfully extract meaningful signals and render them as explorable, visually stunning 3D sculptures.
 
-## v1 Requirements
+## v1.0 Requirements (Validated)
 
-Requirements for initial release. Each maps to roadmap phases.
+All v1.0 requirements shipped. See v1.0 milestone archive for details.
 
-### Ingestion
+### Ingestion — ✓ Complete
+- ✓ **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) — Phase 1
+- ✓ **INGEST-02**: User can batch-ingest an entire folder of photos — Phase 1
+- ✓ **INGEST-03**: User can view thumbnails and metadata in library panel — Phase 1
 
-- [x] **INGEST-01**: User can load a single photo (JPEG, PNG, TIFF, RAW) into the pipeline
-- [x] **INGEST-02**: User can batch-ingest an entire folder of photos with progress feedback
-- [x] **INGEST-03**: User can view thumbnails and metadata of ingested photos in a library panel
+### Feature Extraction — ✓ Complete
+- ✓ **EXTRACT-01**: Pipeline extracts dominant colors, gradients, color distributions — Phase 1
+- ✓ **EXTRACT-02**: Pipeline extracts edges, contours, geometric structure — Phase 1
+- ✓ **EXTRACT-03**: Pipeline generates depth maps via Depth Anything V2 — Phase 1
+- ✓ **EXTRACT-04**: Pipeline extracts semantic features via CLIP — Phase 3
+- ✓ **EXTRACT-05**: User can view extracted features per photo — Phase 2
 
-### Feature Extraction
+### Collection Analysis — ✓ Complete
+- ✓ **COLL-01**: Pipeline identifies patterns across collections — Phase 3
+- ✓ **COLL-02**: User can visualize collection-level patterns — Phase 3
+- ✓ **COLL-03**: Collection patterns feed into sculpture generation — Phase 3
 
-- [x] **EXTRACT-01**: Pipeline extracts dominant colors, gradients, and color distributions from each photo
-- [x] **EXTRACT-02**: Pipeline extracts edges, contours, and geometric structure from each photo
-- [x] **EXTRACT-03**: Pipeline generates monocular depth maps via Depth Anything V2 (ONNX/DirectML on AMD GPU)
-- [x] **EXTRACT-04**: Pipeline extracts semantic features (objects, scenes, mood) via local CLIP/BLIP models
-- [x] **EXTRACT-05**: User can view extracted features per photo (color palette, edge map, depth map, semantic tags)
+### 3D Rendering — ✓ Complete
+- ✓ **RENDER-01** through **RENDER-07**: Point clouds, viewport, particles, post-processing, animation — Phases 1-3
 
-### Collection Analysis
+### Simulation — ✓ Complete
+- ✓ **SIM-01** through **SIM-04**: Particle models, fluid sim, flow fields — Phase 2
 
-- [x] **COLL-01**: Pipeline identifies patterns across photo collections (clustering, trends, outliers)
-- [x] **COLL-02**: User can visualize collection-level patterns (e.g., t-SNE/UMAP embedding space)
-- [x] **COLL-03**: Collection patterns feed into sculpture generation as compositional signals
+### Creative Controls — ✓ Complete
+- ✓ **CTRL-01** through **CTRL-07**: Parameter panel, mapping editor, undo/redo, save/load, export, presets — Phases 2-3
 
-### 3D Rendering & Visualization
+### Discovery & AI — ✓ Complete
+- ✓ **DISC-01** through **DISC-04**: Discovery mode, Claude API, offline-first — Phase 3
 
-- [x] **RENDER-01**: Pipeline generates 3D point clouds from extracted features (geometry, color, depth)
-- [x] **RENDER-02**: Real-time 3D viewport with orbit, zoom, pan at 30+ FPS via Vulkan/wgpu
-- [x] **RENDER-03**: Point cloud rendering with configurable size, color mapping, opacity, and additive blending
-- [x] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
-- [x] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
-- [x] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
-- [x] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
+### Desktop Application — ✓ Complete
+- ✓ **APP-01** through **APP-04**: PySide6 GUI, AMD GPU, responsive UI — Phase 1
 
-### Generative Models & Simulation
+## v2.0 Requirements
 
-- [x] **SIM-01**: Research and integrate best-in-class particle/generative models for visually compelling output
-- [x] **SIM-02**: GPU-accelerated fluid dynamics simulation (SPH or Navier-Stokes solver via compute shaders)
-- [x] **SIM-03**: Flow field generation from extracted features driving particle motion
-- [x] **SIM-04**: Sculptures must be visually pleasing and artistic -- aesthetic quality is a hard requirement, not a nice-to-have
+Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
-### Creative Controls
+### Physics & Simulation
 
-- [x] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
-- [x] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
-- [x] **CTRL-03**: Undo/redo on all parameter changes
-- [x] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
-- [x] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
-- [x] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
-- [x] **CTRL-07**: Preset interpolation -- smoothly blend between saved presets
+- [ ] **PHYS-01**: Particles maintain coherent form via per-particle home position attraction instead of dispersing into chaos
+- [ ] **PHYS-02**: PBF (Position Based Fluids) solver replaces SPH with unconditionally stable constraint resolution
+- [ ] **PHYS-03**: Spatial hash rebuilds every frame on GPU so neighbor lookups remain correct during motion
+- [ ] **PHYS-04**: Force and velocity clamping prevents runaway acceleration
+- [ ] **PHYS-05**: CFL-adaptive timestep adjusts step size based on maximum particle velocity
+- [ ] **PHYS-06**: Curl noise flow fields produce smooth, organic particle motion
+- [ ] **PHYS-07**: Vortex confinement adds swirling, turbulent detail to particle motion
+- [ ] **PHYS-08**: Breathing modulation (sine wave on home_strength/noise_amplitude) makes sculptures feel alive
+- [ ] **PHYS-09**: Solver iterations parameter acts as creative control (1=gas/wispy, 4+=liquid/cohesive)
 
-### Discovery & AI
+### Rendering Quality
 
-- [x] **DISC-01**: Local discovery mode -- randomized but constrained parameter exploration with "more/less like this" feedback loop (no API required)
-- [x] **DISC-02**: Optional Claude API integration for semantic photo annotation (describe what's in photos -- mood, objects, narrative)
-- [x] **DISC-03**: Optional Claude API creative direction (suggest how to map extracted features to visual forms)
-- [x] **DISC-04**: All core functionality works fully offline -- Claude API is additive enrichment only
+- [ ] **REND-01**: Particles render as round, soft points instead of hard squares
+- [ ] **REND-02**: Viewport uses white background by default
+- [ ] **REND-03**: Additive blending creates luminous, glowing particle clusters
+- [ ] **REND-04**: Bloom/glow post-processing enhances particle aesthetics
+- [ ] **REND-05**: GPU buffer sharing eliminates CPU readback bottleneck for 1M+ particles
+- [ ] **REND-06**: Parameter changes crossfade smoothly instead of popping
 
-### Desktop Application
+### UI & UX
 
-- [x] **APP-01**: Desktop GUI built with PySide6 -- professional layout with docking panels
-- [x] **APP-02**: Runs on Windows 11 with AMD RX 9060 XT (RDNA 4) -- no CUDA dependencies
-- [x] **APP-03**: Full GPU/CPU/RAM utilization for generation (hours-long runs acceptable)
-- [x] **APP-04**: UI remains responsive during long generation runs (background compute, foreground interaction)
+- [ ] **UI-01**: Clean, logical panel layout with clear visual hierarchy
+- [ ] **UI-02**: Tiered parameter controls — 6 essential sliders visible, advanced collapsed
+- [ ] **UI-03**: qt-material theming for polished, modern appearance
+- [ ] **UI-04**: Parameter presets with visual thumbnails for quick selection
 
-## v2 Requirements
+### Claude Creative Direction
 
-Deferred to future release. Tracked but not in current roadmap.
+- [ ] **CLAU-01**: Claude analyzes loaded photo(s) and suggests parameter sets for organic sculptures
+- [ ] **CLAU-02**: Structured outputs via Pydantic ensure Claude returns valid, bounded parameters
+- [ ] **CLAU-03**: Suggested parameters crossfade into viewport smoothly on apply
+- [ ] **CLAU-04**: Iterative "more/less like this" refinement loop with Claude
+
+### Depth & Extraction
+
+- [ ] **DPTH-01**: Depth maps use CLAHE post-processing for proper saturation and contrast
+- [ ] **DPTH-02**: Depth-to-color mapping uses richer, more expressive color range
+
+## Future Requirements
+
+Deferred beyond v2.0. Tracked but not in current roadmap.
 
 ### Output Formats
-
 - **OUT-01**: Export animated sequences as video (MP4/WebM)
 - **OUT-02**: Export point cloud data for use in other 3D tools (PLY, LAS)
 
 ### Advanced Rendering
-
-- **ADV-01**: Multiple simultaneous viewports (front/side/top/perspective)
+- **ADV-01**: Multiple simultaneous viewports
 - **ADV-02**: VR viewport output for immersive exploration
 - **ADV-03**: Audio-reactive parameter modulation
 
 ### Input Expansion
-
 - **INP-01**: Video frame extraction as input source
 - **INP-02**: Real-time camera feed processing
 
@@ -92,13 +104,13 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Feature | Reason |
 |---------|--------|
-| Text-to-image / prompt-based generation | Apollo 7 transforms DATA, not prompts. This is Stable Diffusion territory |
-| Node-based visual programming | TouchDesigner does this. Apollo 7's value is the integrated GUI workflow |
-| Plugin/extension system | Premature abstraction -- hardcode features in v1, consider plugins v2+ |
-| Cloud rendering | Contradicts local-first philosophy. Desktop GPU is more than capable |
-| Mesh generation / 3D printing export | Point cloud to manifold mesh is a deep rabbit hole. Stay in particle/point territory |
-| Multi-user collaboration | Desktop creative tool for solo artists |
-| Social sharing / gallery | Export images; users choose their own sharing platform |
+| Replace pygfx/wgpu rendering engine | Research confirmed current stack is correct; problems are physics, not rendering |
+| Replace PySide6 GUI framework | pygfx integration works; theme with qt-material instead |
+| Taichi Lang integration | Cannot share GPU buffers with wgpu/pygfx — CPU roundtrip kills performance |
+| NVIDIA Warp | CUDA-only, incompatible with AMD RDNA 4 |
+| Text-to-image / prompt-based generation | Apollo 7 transforms DATA, not prompts |
+| Node-based visual programming | TouchDesigner does this; Apollo 7's value is integrated GUI |
+| Cloud rendering | Local-first philosophy; desktop GPU is capable |
 | Mobile app | Desktop only |
 
 ## Traceability
@@ -107,49 +119,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGEST-01 | Phase 1 | Complete |
-| INGEST-02 | Phase 1 | Complete |
-| INGEST-03 | Phase 1 | Complete |
-| EXTRACT-01 | Phase 1 | Complete |
-| EXTRACT-02 | Phase 1 | Complete |
-| EXTRACT-03 | Phase 1 | Complete |
-| EXTRACT-04 | Phase 3 | Complete |
-| EXTRACT-05 | Phase 2 | Complete |
-| COLL-01 | Phase 3 | Complete |
-| COLL-02 | Phase 3 | Complete |
-| COLL-03 | Phase 3 | Complete |
-| RENDER-01 | Phase 1 | Complete |
-| RENDER-02 | Phase 1 | Complete |
-| RENDER-03 | Phase 1 | Complete |
-| RENDER-04 | Phase 2 | Complete |
-| RENDER-05 | Phase 2 | Complete |
-| RENDER-06 | Phase 2 | Complete |
-| RENDER-07 | Phase 3 | Complete |
-| SIM-01 | Phase 2 | Complete |
-| SIM-02 | Phase 2 | Complete |
-| SIM-03 | Phase 2 | Complete |
-| SIM-04 | Phase 2 | Complete |
-| CTRL-01 | Phase 2 | Complete |
-| CTRL-02 | Phase 3 | Complete |
-| CTRL-03 | Phase 2 | Complete |
-| CTRL-04 | Phase 2 | Complete |
-| CTRL-05 | Phase 2 | Complete |
-| CTRL-06 | Phase 2 | Complete |
-| CTRL-07 | Phase 3 | Complete |
-| DISC-01 | Phase 3 | Complete |
-| DISC-02 | Phase 3 | Complete |
-| DISC-03 | Phase 3 | Complete |
-| DISC-04 | Phase 3 | Complete |
-| APP-01 | Phase 1 | Complete |
-| APP-02 | Phase 1 | Complete |
-| APP-03 | Phase 1 | Complete |
-| APP-04 | Phase 1 | Complete |
+| (populated by roadmapper) | | |
 
 **Coverage:**
-- v1 requirements: 37 total
-- Mapped to phases: 37
-- Unmapped: 0
+- v2.0 requirements: 22 total
+- Mapped to phases: 0
+- Unmapped: 22 ⚠️
 
 ---
-*Requirements defined: 2026-03-14*
-*Last updated: 2026-03-14 after roadmap creation*
+*Requirements defined: 2026-03-14 (v1.0), updated 2026-03-15 (v2.0)*
+*Last updated: 2026-03-15 after v2.0 requirements definition*
