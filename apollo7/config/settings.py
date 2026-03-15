@@ -88,7 +88,7 @@ WINDOW_SIZE: tuple[int, int] = (1920, 1080)
 MIN_WINDOW_SIZE: tuple[int, int] = (1280, 720)
 
 # -- Post-processing: Bloom --
-BLOOM_STRENGTH_DEFAULT: float = 0.5
+BLOOM_STRENGTH_DEFAULT: float = 0.3
 BLOOM_STRENGTH_RANGE: tuple[float, float] = (0.0, 3.0)
 BLOOM_FILTER_RADIUS: float = 0.015
 

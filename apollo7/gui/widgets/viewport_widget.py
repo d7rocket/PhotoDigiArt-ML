@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # pygfx PointsGaussianBlobMaterial does NOT expose a blend_mode parameter.
 # Workaround: alpha < 1.0 combined with Gaussian blob falloff.
 BLEND_MODE_AVAILABLE: bool = False
-_BLEND_ALPHA: float = 0.45
+_BLEND_ALPHA: float = 0.85
 
 # Signal emitted when layout regeneration is needed (connected by MainWindow)
 _LAYOUT_CHANGE_SIGNAL_NAME = "layout_change_requested"
@@ -286,9 +286,13 @@ class ViewportWidget(QtWidgets.QWidget):
         Returns:
             The created gfx.Points object.
         """
+        # Apply blend alpha for luminous overlap effect on white background
+        colors = colors.copy().astype(np.float32)
+        colors[:, 3] = np.minimum(colors[:, 3], _BLEND_ALPHA)
+
         geometry = gfx.Geometry(
             positions=positions.astype(np.float32),
-            colors=colors.astype(np.float32),
+            colors=colors,
             sizes=sizes.astype(np.float32),
         )
         material = gfx.PointsGaussianBlobMaterial(

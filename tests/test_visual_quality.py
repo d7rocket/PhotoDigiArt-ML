@@ -131,11 +131,11 @@ class TestEnrichedColors:
 
 
 def test_blend_alpha_configured():
-    """_BLEND_ALPHA should be less than 0.7 for luminous overlap effect."""
+    """_BLEND_ALPHA should be less than 1.0 for luminous overlap on white bg."""
     from apollo7.gui.widgets.viewport_widget import _BLEND_ALPHA
 
-    assert _BLEND_ALPHA < 0.7, (
-        f"_BLEND_ALPHA should be < 0.7 for luminous overlap, got {_BLEND_ALPHA}"
+    assert 0.7 <= _BLEND_ALPHA < 1.0, (
+        f"_BLEND_ALPHA should be in [0.7, 1.0) for visible particles on white bg, got {_BLEND_ALPHA}"
     )
 
 

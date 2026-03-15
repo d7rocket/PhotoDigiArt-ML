@@ -15,7 +15,7 @@ from apollo7.extraction.base import BaseExtractor, ExtractionResult
 
 def extract_enriched_colors(
     image_rgb: np.ndarray,
-    saturation_boost: float = 1.3,
+    saturation_boost: float = 1.5,
 ) -> np.ndarray:
     """Extract per-pixel colors with HSV saturation boost.
 
