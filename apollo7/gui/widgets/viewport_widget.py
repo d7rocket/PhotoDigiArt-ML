@@ -337,12 +337,10 @@ class ViewportWidget(QtWidgets.QWidget):
         TrailAccumulator instances. Bloom is enabled by default; others
         are disabled until toggled on via the PostFX panel.
         """
-        try:
-            self._bloom = BloomController(self._renderer)
-            logger.info("Bloom post-fx initialized")
-        except Exception as exc:
-            logger.warning("Failed to initialize bloom: %s", exc)
-            self._bloom = None
+        # Bloom disabled — doesn't produce good results on white background.
+        # Colored halos wash out; particles look better without it.
+        self._bloom = None
+        logger.info("Bloom disabled (white background)")
 
         self._dof = DepthOfFieldPass()
         self._ssao = SSAOPass()
