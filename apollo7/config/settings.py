@@ -15,9 +15,9 @@ OPACITY_RANGE: tuple[float, float] = (0.0, 1.0)
 DEPTH_EXAGGERATION_DEFAULT: float = 4.0
 DEPTH_EXAGGERATION_RANGE: tuple[float, float] = (1.0, 10.0)
 
-# -- Background colors (dark gradient) --
-BG_COLOR_TOP: str = "#1a1a1a"
-BG_COLOR_BOTTOM: str = "#0a0a0a"
+# -- Background colors (warm off-white gallery paper) --
+BG_COLOR_TOP: str = "#F8F6F3"
+BG_COLOR_BOTTOM: str = "#F5F3F0"
 
 # -- Accent color --
 ACCENT_COLOR: str = "#0078FF"
@@ -88,8 +88,9 @@ WINDOW_SIZE: tuple[int, int] = (1920, 1080)
 MIN_WINDOW_SIZE: tuple[int, int] = (1280, 720)
 
 # -- Post-processing: Bloom --
-BLOOM_STRENGTH_DEFAULT: float = 0.04
+BLOOM_STRENGTH_DEFAULT: float = 0.5
 BLOOM_STRENGTH_RANGE: tuple[float, float] = (0.0, 3.0)
+BLOOM_FILTER_RADIUS: float = 0.015
 
 # -- Post-processing: Depth of Field --
 DOF_FOCAL_DEFAULT: float = 10.0

@@ -11,7 +11,11 @@ from typing import TYPE_CHECKING
 
 from pygfx.renderers.wgpu import PhysicalBasedBloomPass
 
-from apollo7.config.settings import BLOOM_STRENGTH_DEFAULT, BLOOM_STRENGTH_RANGE
+from apollo7.config.settings import (
+    BLOOM_FILTER_RADIUS,
+    BLOOM_STRENGTH_DEFAULT,
+    BLOOM_STRENGTH_RANGE,
+)
 
 if TYPE_CHECKING:
     import pygfx as gfx
@@ -39,7 +43,8 @@ class BloomController:
         self._bloom_pass = PhysicalBasedBloomPass(
             bloom_strength=self._clamp_strength(strength),
             max_mip_levels=6,
-            filter_radius=0.005,
+            filter_radius=BLOOM_FILTER_RADIUS,
+            use_karis_average=True,
         )
         self._enabled = True
 
