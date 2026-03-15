@@ -18,7 +18,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **EXTRACT-01**: Pipeline extracts dominant colors, gradients, and color distributions from each photo
 - [x] **EXTRACT-02**: Pipeline extracts edges, contours, and geometric structure from each photo
 - [x] **EXTRACT-03**: Pipeline generates monocular depth maps via Depth Anything V2 (ONNX/DirectML on AMD GPU)
-- [ ] **EXTRACT-04**: Pipeline extracts semantic features (objects, scenes, mood) via local CLIP/BLIP models
+- [x] **EXTRACT-04**: Pipeline extracts semantic features (objects, scenes, mood) via local CLIP/BLIP models
 - [x] **EXTRACT-05**: User can view extracted features per photo (color palette, edge map, depth map, semantic tags)
 
 ### Collection Analysis
@@ -113,7 +113,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXTRACT-01 | Phase 1 | Complete |
 | EXTRACT-02 | Phase 1 | Complete |
 | EXTRACT-03 | Phase 1 | Complete |
-| EXTRACT-04 | Phase 3 | Pending |
+| EXTRACT-04 | Phase 3 | Complete |
 | EXTRACT-05 | Phase 2 | Complete |
 | COLL-01 | Phase 3 | Pending |
 | COLL-02 | Phase 3 | Pending |
