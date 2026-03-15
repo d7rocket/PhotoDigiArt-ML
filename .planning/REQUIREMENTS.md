@@ -46,8 +46,8 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 ### Physics & Simulation
 
 - [x] **PHYS-01**: Particles maintain coherent form via per-particle home position attraction instead of dispersing into chaos
-- [ ] **PHYS-02**: PBF (Position Based Fluids) solver replaces SPH with unconditionally stable constraint resolution
-- [ ] **PHYS-03**: Spatial hash rebuilds every frame on GPU so neighbor lookups remain correct during motion
+- [x] **PHYS-02**: PBF (Position Based Fluids) solver replaces SPH with unconditionally stable constraint resolution
+- [x] **PHYS-03**: Spatial hash rebuilds every frame on GPU so neighbor lookups remain correct during motion
 - [x] **PHYS-04**: Force and velocity clamping prevents runaway acceleration
 - [ ] **PHYS-05**: CFL-adaptive timestep adjusts step size based on maximum particle velocity
 - [ ] **PHYS-06**: Curl noise flow fields produce smooth, organic particle motion
@@ -120,8 +120,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PHYS-01 | Phase 4 | Complete |
-| PHYS-02 | Phase 4 | Pending |
-| PHYS-03 | Phase 4 | Pending |
+| PHYS-02 | Phase 4 | Complete |
+| PHYS-03 | Phase 4 | Complete |
 | PHYS-04 | Phase 4 | Complete |
 | PHYS-05 | Phase 4 | Pending |
 | PHYS-06 | Phase 4 | Pending |

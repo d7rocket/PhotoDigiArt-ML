@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-15T11:22:57.717Z"
-last_activity: 2026-03-15 -- PBF parameters and buffers (04-01)
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-15T11:29:00Z"
+last_activity: 2026-03-15 -- PBF solver core shaders and orchestration (04-02)
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 25
-  completed_plans: 21
-  percent: 0
+  completed_plans: 22
+  percent: 88
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 4 of 6 (Stable Physics)
-Plan: 1 of 5 in current phase
+Plan: 2 of 5 in current phase
 Status: Executing
-Last activity: 2026-03-15 -- PBF parameters and buffers (04-01)
+Last activity: 2026-03-15 -- PBF solver core shaders and orchestration (04-02)
 
-Progress: [████████░░] 84% (v2.0)
+Progress: [█████████░] 88% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1 (v2.0)
-- Average duration: 3min
-- Total execution time: 3min
+- Total plans completed: 2 (v2.0)
+- Average duration: 3.5min
+- Total execution time: 7min
 
 ## Accumulated Context
 
@@ -54,6 +54,8 @@ Recent decisions affecting current work:
 - [04-01]: rest_density=6378.0 from PBF research (not SPH 1000.0)
 - [04-01]: cell_size mirrors kernel_radius in uniform (no separate param)
 - [04-01]: All PBF params classified as visual (hot-reload, no restart)
+- [04-02]: Block sums for prefix sum computed on CPU from cell_counts (avoids Blelloch race)
+- [04-02]: Damping applied in finalize pass (velocity *= damping) not predict pass
 
 ### Pending Todos
 
@@ -67,6 +69,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T11:22:04Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-stable-physics/04-01-SUMMARY.md
+Last session: 2026-03-15T11:28:57Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: .planning/phases/04-stable-physics/04-02-SUMMARY.md
