@@ -89,11 +89,14 @@ class ParticleBuffer:
             size=max_particles * 4, usage=aux_usage
         )
         # Spatial hash grid: cell_counts, cell_offsets (GRID_SIZE^3 * 4 bytes each)
+        # COPY_SRC needed: prefix sum copies cell_counts -> cell_offsets
+        # COPY_SRC on offsets: needed for GPU readback during debugging
+        grid_usage = aux_usage | wgpu.BufferUsage.COPY_SRC
         self._cell_counts_buf = device.create_buffer(
-            size=GRID_TOTAL_CELLS * 4, usage=aux_usage
+            size=GRID_TOTAL_CELLS * 4, usage=grid_usage
         )
         self._cell_offsets_buf = device.create_buffer(
-            size=GRID_TOTAL_CELLS * 4, usage=aux_usage
+            size=GRID_TOTAL_CELLS * 4, usage=grid_usage
         )
         # Sorted particle indices: one u32 per particle
         self._sorted_indices_buf = device.create_buffer(

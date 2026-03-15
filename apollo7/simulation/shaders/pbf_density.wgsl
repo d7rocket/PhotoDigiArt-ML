@@ -159,8 +159,8 @@ fn compute_density(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Lambda: lambda_i = -C_i / (sum_grad_sq + epsilon)
     var lambda_i = -c_i / (sum_grad_sq + params.epsilon_pbf);
 
-    // NaN/Inf guard
-    if (isnan(lambda_i) || isinf(lambda_i)) {
+    // NaN/Inf guard (WGSL has no isnan/isinf -- use arithmetic checks)
+    if (lambda_i != lambda_i || lambda_i - lambda_i != 0.0) {
         lambda_i = 0.0;
     }
 

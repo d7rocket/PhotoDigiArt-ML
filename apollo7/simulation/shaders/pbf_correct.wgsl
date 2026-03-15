@@ -160,8 +160,9 @@ fn compute_correction(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Scale by 1/rest_density
     dp_i = dp_i / params.rest_density;
 
-    // NaN/Inf guard on delta_p
-    if (any(isnan(dp_i)) || any(isinf(dp_i))) {
+    // NaN/Inf guard on delta_p (WGSL has no isnan/isinf)
+    if (dp_i.x != dp_i.x || dp_i.y != dp_i.y || dp_i.z != dp_i.z ||
+        dp_i.x - dp_i.x != 0.0 || dp_i.y - dp_i.y != 0.0 || dp_i.z - dp_i.z != 0.0) {
         dp_i = vec3<f32>(0.0);
     }
 

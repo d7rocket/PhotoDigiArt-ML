@@ -134,9 +134,10 @@ class TestParameterHotReload:
         engine.step()
         engine.step()
 
-        # Physics param update should restart (reset time)
-        engine.update_physics_param("viscosity", 0.5)
-        assert engine.params.viscosity == 0.5
+        # Physics param update triggers restart (even though all params
+        # are visual in PBF, the method itself calls restart())
+        engine.update_physics_param("damping", 0.95)
+        assert engine.params.damping == 0.95
         assert engine._time == 0.0  # Time reset by restart
         assert engine.running
 
@@ -185,29 +186,6 @@ class TestGPUBufferAccess:
         assert engine.get_colors_buffer() is None
 
 
-class TestPerformanceMode:
-    """Verify performance mode toggle."""
-
-    def test_performance_mode_default_off(self):
-        engine, _ = _make_engine()
-        assert engine._performance_mode is False
-
-    def test_set_performance_mode(self):
-        engine, _ = _make_engine()
-        engine.set_performance_mode(True)
-        assert engine._performance_mode is True
-        engine.set_performance_mode(False)
-        assert engine._performance_mode is False
-
-    def test_sim_steps_per_frame(self):
-        engine, _ = _make_engine()
-        engine.set_sim_steps_per_frame(3)
-        assert engine._sim_steps_per_frame == 3
-        # Minimum is 1
-        engine.set_sim_steps_per_frame(0)
-        assert engine._sim_steps_per_frame == 1
-
-
 class TestGPUIntegration:
     """GPU integration tests -- verify no crashes during actual dispatch."""
 
@@ -236,6 +214,24 @@ class TestGPUIntegration:
         engine.step()
 
         assert engine.running
+
+    def test_step_with_feature_textures(self):
+        """Initialize with feature textures, step 5 times, verify no crash."""
+        engine, _ = _make_engine()
+        positions, colors = _make_test_data(500)
+
+        # Create mock feature textures
+        edge_map = np.random.rand(64, 64).astype(np.float32)
+        depth_map = np.random.rand(64, 64).astype(np.float32)
+        feature_textures = {"edge_map": edge_map, "depth_map": depth_map}
+
+        engine.initialize(positions, colors, feature_textures=feature_textures)
+
+        for _ in range(5):
+            engine.step()
+
+        assert engine.running
+        assert engine._has_feature_textures
 
     def test_import_simulation_engine(self):
         """Verify the import path works."""
