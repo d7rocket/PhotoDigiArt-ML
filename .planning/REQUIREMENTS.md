@@ -35,7 +35,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **RENDER-04**: GPU-computed particle system with physically-based dynamics (forces, flow fields, fluid sim)
 - [x] **RENDER-05**: Post-processing effects for aesthetic quality (bloom/glow, depth-of-field, ambient occlusion)
 - [x] **RENDER-06**: Render-then-interact pattern -- heavy GPU compute produces output, then viewport is lightweight for smooth exploration
-- [ ] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
+- [x] **RENDER-07**: Parameter animation via LFOs, noise functions, and envelopes mapped to any visual parameter
 
 ### Generative Models & Simulation
 
@@ -52,7 +52,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
 - [x] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
 - [x] **CTRL-06**: Preset library -- save, load, and organize named parameter presets
-- [ ] **CTRL-07**: Preset interpolation -- smoothly blend between saved presets
+- [x] **CTRL-07**: Preset interpolation -- smoothly blend between saved presets
 
 ### Discovery & AI
 
@@ -124,7 +124,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RENDER-04 | Phase 2 | Complete |
 | RENDER-05 | Phase 2 | Complete |
 | RENDER-06 | Phase 2 | Complete |
-| RENDER-07 | Phase 3 | Pending |
+| RENDER-07 | Phase 3 | Complete |
 | SIM-01 | Phase 2 | Complete |
 | SIM-02 | Phase 2 | Complete |
 | SIM-03 | Phase 2 | Complete |
@@ -135,7 +135,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-04 | Phase 2 | Complete |
 | CTRL-05 | Phase 2 | Complete |
 | CTRL-06 | Phase 2 | Complete |
-| CTRL-07 | Phase 3 | Pending |
+| CTRL-07 | Phase 3 | Complete |
 | DISC-01 | Phase 3 | Pending |
 | DISC-02 | Phase 3 | Pending |
 | DISC-03 | Phase 3 | Pending |
