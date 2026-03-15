@@ -1,451 +1,583 @@
-# Architecture Research
+# Architecture Patterns
 
-**Domain:** Data-driven generative art pipeline
-**Researched:** 2026-03-14
-**Confidence:** MEDIUM (novel domain combining well-understood components in an uncommon way; individual components are well-documented but their integration is bespoke)
+**Domain:** Real-time generative art pipeline (data sculptures from photographs)
+**Researched:** 2026-03-15
+**Focus:** v2.0 integration -- fluid physics, UI rework, Claude creative direction
 
-## Standard Architecture
+## Verdict: Keep pygfx + PySide6, Replace SPH with PBF, Add Claude Parameter Pipeline
 
-### System Overview
+**Keep pygfx+PySide6.** The stack is sound -- pygfx provides WebGPU rendering with wgpu-py compute shader support, and PySide6 is the most mature Python desktop GUI framework. The problems are not framework problems; they are physics implementation bugs and missing architectural layers. Switching frameworks would cost months and solve nothing.
 
-```
-+------------------------------------------------------------------+
-|                        DESKTOP GUI (PySide6)                      |
-|  +-------------+  +-------------------+  +--------------------+  |
-|  | Import Panel |  | Parameter Controls|  | Mode Switcher      |  |
-|  | (drag/drop)  |  | (sliders, maps)   |  | (High-Control /    |  |
-|  +------+------+  +--------+----------+  |  Discovery)         |  |
-|         |                  |              +--------------------+  |
-|  +------v------------------v-------------------------------+     |
-|  |              3D VIEWPORT (wgpu-py / pygfx)              |     |
-|  |         QRenderWidget embedded in PySide6 layout        |     |
-|  +-------------------------^-------------------------------+     |
-+--------------------------------|----------------------------------+
-                                 |
-              +------------------+------------------+
-              |          SCENE GRAPH / STATE         |
-              |  (point clouds, particle systems,    |
-              |   camera, lighting, animations)      |
-              +------------------+------------------+
-                                 |
-         +-----------------------+-----------------------+
-         |                                               |
-+--------v---------+                          +----------v---------+
-| MAPPING ENGINE   |                          | ANIMATION ENGINE   |
-| Feature -> Visual|                          | Fluid motion,      |
-| (color, position,|                          | morphing, flow     |
-| size, density)   |                          | fields, turbulence |
-+--------+---------+                          +----------+---------+
-         |                                               |
-         +-------------------+---------------------------+
-                             |
-              +--------------v--------------+
-              |      FEATURE STORE          |
-              |  (extracted data per image  |
-              |   + aggregate statistics)   |
-              +--------------+--------------+
-                             |
-         +-------------------+-------------------+
-         |                   |                   |
-+--------v------+  +---------v------+  +---------v--------+
-| GEOMETRY      |  | COLOR/TEXTURE  |  | SEMANTIC         |
-| EXTRACTOR     |  | EXTRACTOR      |  | EXTRACTOR        |
-| - Edges (Canny|  | - Palette      |  | - Object detect  |
-|   Sobel)      |  |   (k-means)    |  |   (YOLO/ONNX)   |
-| - Contours    |  | - Gradients    |  | - Scene class.   |
-| - Depth map   |  | - Texture freq |  | - Mood/narrative |
-|   (Depth Any.)|  | - Visual rhythm|  |   (Claude API)   |
-| - Keypoints   |  | - Histograms   |  | - Embeddings     |
-+--------+------+  +---------+------+  +---------+--------+
-         |                   |                   |
-         +-------------------+-------------------+
-                             |
-              +--------------v--------------+
-              |      IMAGE INGESTION        |
-              |  - Single / batch import    |
-              |  - Thumbnail generation     |
-              |  - Metadata extraction      |
-              |  - Queue management         |
-              +--------------+--------------+
-                             |
-                    +--------v--------+
-                    |  SOURCE PHOTOS  |
-                    |  (filesystem)   |
-                    +-----------------+
-```
+**Replace SPH with Position Based Fluids (PBF).** The "particles explode" problem is a fundamental numerical stability issue with the current SPH implementation, not a parameter tuning problem. PBF (Macklin & Muller 2013) is unconditionally stable and purpose-built for real-time GPU particle art. This is the single most impactful architectural change.
 
-### Component Responsibilities
+**Add a Claude Parameter Pipeline** as a new top-level module that sits between the Claude API and the simulation engine, using structured outputs with Pydantic schemas for guaranteed valid parameter generation.
 
-| Component | Responsibility | Inputs | Outputs |
-|-----------|---------------|--------|---------|
-| **Image Ingestion** | Load, validate, thumbnail, queue photos for processing | File paths (single or directory) | Normalized images + metadata |
-| **Geometry Extractor** | Extract spatial structure from images | Normalized images | Edge maps, contours, depth maps, keypoints |
-| **Color/Texture Extractor** | Extract color palettes, gradients, texture signals | Normalized images | Palettes, gradient maps, frequency data |
-| **Semantic Extractor** | Extract meaning, objects, mood | Normalized images | Labels, embeddings, mood vectors |
-| **Feature Store** | Persist and index all extracted features per image and in aggregate | Extractor outputs | Queryable feature database |
-| **Mapping Engine** | Translate features into visual parameters (position, color, size, opacity, motion) | Feature data + user mappings | Scene primitives (point positions, colors, sizes) |
-| **Animation Engine** | Drive fluid motion, morphing, flow fields | Scene primitives + time | Animated scene updates per frame |
-| **Scene Graph** | Hold the current 3D state: point clouds, particles, camera, lights | Mapping + animation outputs | Renderable scene |
-| **3D Viewport** | GPU-accelerated real-time rendering with orbit/zoom/pan | Scene graph | Pixels on screen |
-| **Desktop GUI** | Controls, sliders, mode switching, import UI | User interaction | Commands to all other components |
+## Why Particles Explode: Root Cause Analysis
 
-## Recommended Project Structure
+The current simulation has several compounding stability issues identified from code review:
+
+### 1. No CFL-Adaptive Timestep (Critical)
+The integration shader uses a fixed `dt = 0.016` (60fps assumption). SPH requires the timestep to satisfy the CFL condition: `dt < h / (c_s + v_max)` where `h` is the smoothing radius and `c_s` is the speed of sound. With `smoothing_radius = 0.1` and unclamped velocities, particles easily exceed stable timestep bounds within a few frames.
+
+### 2. Static Spatial Hash (Critical)
+`build_spatial_hash()` runs only at simulation init/restart, not per-frame. As particles move, their neighbor lookups become stale -- particles that are now nearby remain invisible to force calculations, while distant particles still register as neighbors. This causes asymmetric forces that amplify exponentially.
+
+### 3. Force Accumulation Without Clamping
+Forces from the `forces.wgsl` pass (attraction/repulsion) and inline flow forces in `integrate.wgsl` are summed without any magnitude clamping. A single frame where two particles are nearly coincident produces near-infinite repulsion (`1/r^2` with no cap), which cascades.
+
+### 4. Double-Counting Gravity and Wind
+Both `forces.wgsl` (lines 85-91) and `integrate.wgsl` (lines 206-212) compute gravity and wind forces independently. The integration pass adds `external_forces` (which already includes gravity/wind from forces.wgsl) AND computes gravity/wind again inline. Gravity is applied twice per step.
+
+### 5. Boundary Bounce After Position Update
+In `integrate.wgsl`, `clamp_boundary()` modifies velocity based on position, but it runs AFTER the position update. The velocity correction happens too late -- the particle has already been clamped to the boundary with its full velocity, then gets a corrected velocity for the next frame. This creates oscillation at boundaries.
+
+## Recommended Architecture: v2.0
+
+### High-Level Component Map
 
 ```
-apollo7/
-    __main__.py              # Entry point
-    app.py                   # Application bootstrap, DI wiring
-
-    ingestion/
-        __init__.py
-        loader.py            # Single + batch image loading
-        thumbnailer.py       # Thumbnail generation
-        queue.py             # Processing queue management
-
-    extraction/
-        __init__.py
-        base.py              # Abstract extractor interface
-        geometry.py          # Edge, contour, depth, keypoint extraction
-        color.py             # Palette, gradient, texture extraction
-        semantic.py          # Object detection, classification, mood
-        pipeline.py          # Orchestrates extractors in sequence
-
-    features/
-        __init__.py
-        store.py             # Feature persistence (SQLite + numpy arrays)
-        schema.py            # Feature data models
-        aggregator.py        # Cross-image statistics and patterns
-
-    mapping/
-        __init__.py
-        engine.py            # Feature-to-visual parameter mapping
-        presets.py           # Built-in mapping presets
-        discovery.py         # Auto-suggested mappings (discovery mode)
-
-    scene/
-        __init__.py
-        graph.py             # Scene graph (points, particles, camera)
-        pointcloud.py        # Point cloud generation and management
-        particles.py         # Particle system behaviors
-        animation.py         # Flow fields, morphing, turbulence
-
-    rendering/
-        __init__.py
-        viewport.py          # wgpu/pygfx renderer setup
-        shaders/             # WGSL compute and render shaders
-            particle.wgsl
-            pointcloud.wgsl
-            postprocess.wgsl
-        camera.py            # Orbit camera controller
-
-    gui/
-        __init__.py
-        main_window.py       # PySide6 main window
-        panels/
-            import_panel.py  # Photo import UI
-            controls.py      # Parameter sliders and mapping UI
-            feature_view.py  # Feature visualization panel
-        widgets/
-            viewport_widget.py  # QRenderWidget wrapper
-
-    claude/                  # Optional Claude API integration
-        __init__.py
-        annotator.py         # Photo annotation via Claude
-        advisor.py           # Artistic mapping suggestions
-
-    config/
-        __init__.py
-        settings.py          # App settings, defaults
-        presets/             # Saved mapping/rendering presets
++-------------------------------------------------------------------+
+|  PySide6 MainWindow                                               |
+|  +------------------------------+  +---------------------------+  |
+|  |  Viewport (pygfx via         |  |  Right Sidebar            |  |
+|  |  QRenderWidget)              |  |  +---------------------+  |  |
+|  |                              |  |  | Controls Panel      |  |  |
+|  |  SimulationEngine (wgpu      |  |  +---------------------+  |  |
+|  |  compute shaders)            |  |  | Claude Panel (NEW)  |  |  |
+|  |  - PBF Solver (NEW)         |  |  +---------------------+  |  |
+|  |  - Flow Field               |  |  | Simulation Panel    |  |  |
+|  |  - Integration              |  |  +---------------------+  |  |
+|  |                              |  |  | Library Panel       |  |  |
+|  +------------------------------+  |  +---------------------+  |  |
+|  +------------------------------+  +---------------------------+  |
+|  |  Feature Strip / Viewer      |                                 |
+|  +------------------------------+                                 |
++-------------------------------------------------------------------+
+         |                    |                      |
+    SimulationEngine    ClaudeDirector (NEW)    MappingEngine
+         |                    |                      |
+    PBFSolver (NEW)     ParameterSchema (NEW)   MappingGraph
 ```
 
-## Architectural Patterns
+### Component Boundaries
 
-### Pattern 1: Pipeline with Feature Store (Core Pattern)
+| Component | Responsibility | Communicates With | New/Modified |
+|-----------|---------------|-------------------|--------------|
+| `simulation.pbf_solver` | Position Based Fluids constraint solver | SimulationEngine, ParticleBuffer | **NEW** |
+| `simulation.engine` | Orchestrate compute passes, manage lifecycle | PBFSolver, ParticleBuffer, ViewportWidget | **MODIFIED** |
+| `simulation.buffers` | GPU buffer management, per-frame spatial hash | SimulationEngine | **MODIFIED** |
+| `simulation.parameters` | Simulation parameter schema + uniform packing | Engine, ClaudeDirector, UI panels | **MODIFIED** |
+| `api.claude_director` | Claude API calls for creative parameter generation | EnrichmentService, ParameterSchema | **NEW** |
+| `api.parameter_schema` | Pydantic models defining valid parameter ranges | ClaudeDirector, SimulationEngine | **NEW** |
+| `gui.panels.claude_panel` | UI for Claude creative direction interaction | ClaudeDirector, MainWindow | **NEW** |
+| `gui.main_window` | Layout, signal wiring, render loop | All panels, viewport | **MODIFIED** |
+| `gui.theme` | Stylesheet, color tokens, spacing system | All widgets | **MODIFIED** |
+| `rendering.viewport` | Scene management, camera, post-fx | MainWindow | Unchanged |
+| `gui.widgets.viewport_widget` | pygfx embed, sim integration, point clouds | SimulationEngine, MainWindow | **MODIFIED** |
 
-**What:** The system is a staged pipeline where each stage produces intermediate artifacts persisted in a Feature Store. This decouples extraction from rendering -- you can re-extract features without re-rendering, and re-render without re-extracting.
+### Data Flow: Photo to Living Sculpture
 
-**Why:** Photos can take seconds to minutes to process through ML models. The Feature Store means you process once, explore many times. It also enables aggregate analysis across thousands of photos (finding patterns, outliers, dominant colors).
+```
+Photos -> Ingestion -> Extraction (depth, color, edges, CLIP)
+                          |
+                          v
+                    PointCloudGenerator -> positions + colors
+                          |
+                          v
+                    SimulationEngine.initialize(positions, colors)
+                          |
+                          v
+              +--- PBF Compute Pipeline (per frame) ---+
+              |  1. Predict positions (apply forces)    |
+              |  2. Build spatial hash (GPU)            |
+              |  3. Find neighbors                      |
+              |  4. Solve density constraints (iter)    |
+              |  5. Apply position corrections          |
+              |  6. Update velocities from dx           |
+              |  7. Apply vorticity confinement         |
+              |  8. Apply XSPH viscosity                |
+              +----------------------------------------+
+                          |
+                          v
+                    pygfx Points geometry update
+                          |
+                          v
+                    Renderer.render(scene, camera)
+```
 
-**Implementation:**
+### Data Flow: Claude Creative Direction
+
+```
+User clicks "Get Direction" or "Auto-direct"
+          |
+          v
+    ClaudeDirector.generate_parameters(
+        image_data,        # current photo(s)
+        clip_tags,         # semantic understanding
+        current_params,    # what's currently set
+        mood_request       # optional user text
+    )
+          |
+          v
+    Claude API (structured output with Pydantic schema)
+          |
+          v
+    SculptureDirection (validated Pydantic model)
+    {
+        "noise_frequency": 1.2,
+        "noise_amplitude": 0.8,
+        "damping": 0.97,
+        "gravity": [0.0, -0.02, 0.0],
+        "description": "Gentle ocean swell...",
+        "reasoning": "The blues and horizon..."
+    }
+          |
+          v
+    ClaudePanel displays description + reasoning
+          |
+          v
+    User clicks "Apply" or "Apply with Crossfade"
+          |
+          v
+    SimulationEngine receives parameter updates
+    (visual params hot-reload, no restart needed)
+```
+
+## Patterns to Follow
+
+### Pattern 1: Position Based Fluids (PBF) Solver
+
+**What:** Replace SPH force-based simulation with PBF constraint-based simulation. PBF is unconditionally stable because it directly solves positional constraints rather than accumulating forces that can explode.
+
+**Why:** SPH requires careful CFL-compliant timesteps and can diverge with any numerical error. PBF works with large timesteps (one step per frame at 60fps) and never explodes because positions are directly corrected to satisfy density constraints.
+
+**Architecture:**
+
+```
+simulation/
+  pbf_solver.py          # PBF constraint solver orchestration
+  shaders/
+    pbf_predict.wgsl     # Apply forces, predict positions
+    pbf_hash.wgsl        # Build spatial hash on GPU (per-frame)
+    pbf_density.wgsl     # Compute density constraint (poly6 kernel)
+    pbf_correct.wgsl     # Compute position corrections (lambda)
+    pbf_finalize.wgsl    # Update velocity, vorticity confinement, XSPH
+```
+
+**Core algorithm per frame:**
+```
+1. for each particle i:
+     v_i = v_i + dt * f_ext(x_i)    # apply gravity, wind, flow field
+     x_pred_i = x_i + dt * v_i       # predict position
+
+2. build_spatial_hash(x_pred)         # GPU spatial hash, EVERY frame
+
+3. for iter in 0..solver_iterations:  # typically 3-4 iterations
+     for each particle i:
+       compute density rho_i from neighbors (poly6 kernel)
+       compute constraint C_i = (rho_i / rho_0) - 1
+       compute lambda_i = -C_i / (sum_grad_C^2 + epsilon)
+     for each particle i:
+       compute dx_i from lambda_i + neighbor lambdas (spiky kernel)
+       add artificial pressure term (tensile instability fix)
+       x_pred_i = x_pred_i + dx_i
+
+4. for each particle i:
+     v_i = (x_pred_i - x_i) / dt     # velocity from position change
+     apply vorticity confinement      # re-inject lost energy
+     apply XSPH viscosity             # smooth velocity field
+     x_i = x_pred_i                   # commit new position
+```
+
+**Key advantage for art:** The solver iterations parameter directly controls fluid behavior -- 1 iteration gives gas-like behavior, 4+ gives liquid. This is an intuitive creative control.
+
+**Confidence:** HIGH. PBF is the standard approach for real-time GPU fluid art (used by NVIDIA FleX, Houdini FLIP solver concepts). The Macklin & Muller 2013 paper has 1000+ citations and the algorithm maps directly to compute shaders.
+
+### Pattern 2: Per-Frame GPU Spatial Hash
+
+**What:** Move spatial hash construction from CPU (one-time at init) to GPU (every frame).
+
+**Why:** The current CPU-based spatial hash in `buffers.py` (lines 146-213) runs a Python for-loop over all particles -- O(N) in slow Python. It only runs at init, so neighbor data goes stale immediately. A GPU spatial hash using atomic operations runs in a single compute dispatch.
+
+**Architecture:**
+
+```wgsl
+// pbf_hash.wgsl - Three dispatches:
+// Pass 1: Count particles per cell (atomicAdd to cell_counts)
+// Pass 2: Prefix sum on cell_counts -> cell_offsets
+// Pass 3: Scatter particles into sorted_indices by cell
+```
+
+**Buffer layout (reuse existing buffers):**
+- `cell_counts_buf` -- zeroed each frame, atomicAdd per particle
+- `cell_offsets_buf` -- parallel prefix sum of cell_counts
+- `sorted_indices_buf` -- particle indices sorted by cell hash
+
+### Pattern 3: Claude Structured Output for Parameter Generation
+
+**What:** Use Claude's structured outputs (Pydantic schema) to guarantee valid simulation parameters, not freeform JSON parsing.
+
+**Why:** The current `EnrichmentService.suggest_mappings()` returns `list[dict]` with no schema validation -- Claude can return anything and the `json.loads()` call can fail silently. Structured outputs guarantee schema compliance at the token generation level.
+
+**Architecture:**
+
 ```python
-class FeatureStore:
-    """SQLite metadata + numpy .npz files for array data."""
+# api/parameter_schema.py
+from pydantic import BaseModel, Field
 
-    def store_features(self, image_id: str, extractor: str, features: dict):
-        # Scalar metadata -> SQLite
-        # Arrays (depth maps, embeddings) -> .npz on disk
-        ...
+class SculptureDirection(BaseModel):
+    """Claude's creative direction for a data sculpture."""
 
-    def get_features(self, image_id: str) -> ImageFeatures:
-        ...
+    # Physics parameters (bounded to safe ranges)
+    noise_frequency: float = Field(ge=0.01, le=5.0)
+    noise_amplitude: float = Field(ge=0.0, le=3.0)
+    turbulence_scale: float = Field(ge=0.0, le=3.0)
+    damping: float = Field(ge=0.9, le=1.0)
+    speed: float = Field(ge=0.0, le=3.0)
+    viscosity: float = Field(ge=0.0, le=2.0)
+    surface_tension: float = Field(ge=0.0, le=1.0)
+    gravity_y: float = Field(ge=-1.0, le=0.0)
+    solver_iterations: int = Field(ge=1, le=8)
 
-    def get_aggregate(self, feature_name: str) -> AggregateStats:
-        # Cross-image statistics for discovery mode
-        ...
+    # Creative metadata
+    title: str = Field(max_length=60)
+    description: str = Field(max_length=200)
+    mood: str = Field(max_length=30)
+    reasoning: str = Field(max_length=300)
+
+
+# api/claude_director.py
+class ClaudeDirector:
+    """Generates creative sculpture parameters via Claude API."""
+
+    def generate_direction(
+        self,
+        image_path: str,
+        clip_tags: list[tuple[str, float]],
+        current_params: SimulationParams,
+        user_mood: str | None = None,
+    ) -> SculptureDirection:
+        response = self._client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system=DIRECTOR_SYSTEM_PROMPT,
+            messages=[...],
+            # Use structured output for guaranteed schema
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "sculpture_direction",
+                    "schema": SculptureDirection.model_json_schema(),
+                    "strict": True,
+                },
+            },
+        )
+        return SculptureDirection.model_validate_json(
+            response.content[0].text
+        )
 ```
 
-### Pattern 2: Mapping as Configuration, Not Code
+**Confidence:** HIGH. Claude structured outputs are production-ready (beta since Nov 2025). Pydantic schema generation works directly with the API.
 
-**What:** Feature-to-visual mappings are declarative data structures, not hardcoded logic. A mapping says "depth value maps to Z position via ease-in curve, range 0-100" rather than implementing the transform in code.
+### Pattern 4: Parameter Crossfade for Live Direction Changes
 
-**Why:** This enables the High-Control mode (user edits mappings via sliders) and Discovery mode (system proposes mappings) through the same mechanism. It also makes presets trivial to save/load.
+**What:** When Claude suggests new parameters or the user applies a preset, smoothly interpolate all simulation parameters over N frames rather than snapping instantly.
+
+**Why:** Instant parameter changes cause jarring visual discontinuities. Lerping over 30-60 frames (0.5-1 second) creates organic transitions that feel like the sculpture is "breathing" into a new state.
+
+**Architecture:**
 
 ```python
-@dataclass
-class FeatureMapping:
-    source_feature: str       # e.g., "color.dominant_hue"
-    target_param: str         # e.g., "point.color.h"
-    curve: str                # "linear", "ease_in", "step", "noise"
-    source_range: tuple       # (0.0, 360.0)
-    target_range: tuple       # (0.0, 1.0)
-    weight: float             # 0.0 - 1.0 blend factor
+# simulation/crossfade.py (extend existing animation/crossfade concept)
+class ParameterCrossfader:
+    """Smoothly interpolates between parameter sets."""
+
+    def __init__(self, duration_frames: int = 45):
+        self._from_params: SimulationParams | None = None
+        self._to_params: SimulationParams | None = None
+        self._progress: float = 1.0  # 1.0 = complete
+        self._duration: int = duration_frames
+
+    def start(self, from_p: SimulationParams, to_p: SimulationParams):
+        self._from_params = from_p
+        self._to_params = to_p
+        self._progress = 0.0
+
+    def tick(self) -> SimulationParams | None:
+        """Advance one frame. Returns interpolated params or None if done."""
+        if self._progress >= 1.0:
+            return None
+        self._progress += 1.0 / self._duration
+        t = self._ease_in_out(min(self._progress, 1.0))
+        return self._lerp_params(self._from_params, self._to_params, t)
 ```
 
-### Pattern 3: GPU Compute for Particles, CPU for Extraction
+This integrates into the existing render loop in `ViewportWidget._animate()`.
 
-**What:** Extraction (OpenCV, ONNX models) runs on CPU or GPU via DirectML/ROCm. Particle simulation and rendering runs entirely on GPU via wgpu compute shaders. These are separate GPU workloads that do not share memory.
+### Pattern 5: Eliminate CPU Readback in Render Loop
 
-**Why:** Extraction is batch/offline work. Rendering is real-time (60fps target). Mixing them on the same GPU path creates contention. By separating them, extraction can saturate the GPU for inference while rendering uses the GPU graphics pipeline independently. The Feature Store is the clean boundary between the two worlds.
+**What:** Replace the current `read_positions()` CPU readback with direct GPU buffer sharing between compute and render pipelines.
 
-### Pattern 4: Observer Pattern for Live Parameter Updates
+**Why:** `_update_points_from_sim()` in `viewport_widget.py` (line 499) calls `read_positions()` which does a full GPU->CPU->GPU roundtrip every frame. This is the single biggest performance bottleneck -- it serializes the GPU pipeline and adds latency proportional to particle count.
 
-**What:** GUI sliders emit change events. The Mapping Engine subscribes and recomputes affected visual parameters. The Scene Graph updates. The Viewport re-renders. No polling.
+**Architecture:**
 
-**Why:** Real-time interactivity requires that moving a slider immediately changes the visualization. An observer/signal pattern (Qt's signals/slots) naturally fits this, and PySide6 provides it natively.
+pygfx `gfx.Buffer` can wrap an existing wgpu buffer. Instead of reading back positions and creating a new `gfx.Buffer` each frame, create the pygfx geometry buffer once using the compute shader's output buffer directly:
 
-## Data Flow
+```python
+# In ViewportWidget.init_simulation():
+# Instead of creating a new gfx.Points with numpy data,
+# create geometry that references the compute output buffer directly.
 
-### Phase 1: Ingestion (Offline, User-Initiated)
+# Option A: Use pygfx's buffer update mechanism
+# Update geometry.positions.data in-place from GPU buffer
+# (still requires readback but avoids allocation)
 
-```
-User drops photos
-    -> Loader validates (format, size, EXIF)
-    -> Thumbnailer generates previews
-    -> Queue manager schedules extraction
-    -> Photos stored with unique IDs
-```
-
-### Phase 2: Feature Extraction (Offline, Background)
-
-```
-For each image in queue:
-    -> Geometry extractor runs:
-        - OpenCV edge detection (Canny, Sobel)
-        - OpenCV contour finding
-        - Depth Anything V2 via ONNX Runtime + DirectML (monocular depth)
-        - ORB/SIFT keypoints
-    -> Color extractor runs:
-        - k-means palette extraction
-        - Gradient direction analysis
-        - FFT texture frequency
-        - Color histogram
-    -> Semantic extractor runs:
-        - YOLOv8 object detection via ONNX + DirectML
-        - Scene classification via ONNX model
-        - (Optional) Claude API for mood/narrative annotation
-    -> All features stored in Feature Store
-    -> Aggregate statistics updated
+# Option B: Custom shader material that reads from storage buffer
+# Write a custom pygfx material that reads particle positions
+# from the compute shader's storage buffer directly.
+# This requires pygfx's custom shader API.
 ```
 
-### Phase 3: Mapping (Interactive)
+**Confidence:** MEDIUM. pygfx's custom shader API supports this conceptually but the exact integration between a wgpu storage buffer and a pygfx material needs validation. The mapped buffer API in wgpu-py is intentionally limited. The fallback (Option A with in-place update) still eliminates per-frame allocation.
 
-```
-User selects mapping mode:
-    HIGH-CONTROL:
-        -> User assigns feature channels to visual parameters
-        -> Adjusts curves, ranges, weights via sliders
-    DISCOVERY:
-        -> System analyzes feature distributions
-        -> Proposes interesting mappings (high variance features get priority)
-        -> User accepts/modifies/rejects
+## Anti-Patterns to Avoid
 
-Mapping Engine produces:
-    -> Point positions (x, y, z) from spatial features
-    -> Point colors (r, g, b, a) from color features
-    -> Point sizes from intensity/significance
-    -> Motion vectors from semantic relationships
-```
+### Anti-Pattern 1: Trying to Fix SPH with Parameter Tuning
+**What:** Spending time adjusting `rest_density`, `smoothing_radius`, `gas_constant` etc. to find stable SPH parameters.
+**Why bad:** The instability is structural (stale spatial hash, double gravity, no CFL timestep). Even with perfect parameters, the spatial hash goes stale after frame 1. Parameter tuning on a broken foundation wastes weeks.
+**Instead:** Replace SPH with PBF. Fix the structural bugs (double gravity, static hash) first.
 
-### Phase 4: Rendering (Real-time, 60fps)
+### Anti-Pattern 2: Switching to a Different Rendering Framework
+**What:** Replacing pygfx with Taichi, Open3D, VTK, or a custom Vulkan renderer.
+**Why bad:** pygfx+wgpu already provides everything needed -- compute shaders, point rendering, scene graph, Qt embedding. The rendering works. The problem is in the simulation compute shaders and the CPU readback bottleneck.
+**Instead:** Fix the compute pipeline and eliminate CPU readback. pygfx is approaching 1.0 (July 2026) and is actively maintained.
 
-```
-Mapping output -> GPU buffer upload (positions, colors, sizes)
-    -> Compute shader: particle physics (flow fields, attraction, turbulence)
-    -> Compute shader: animation updates (morph targets, oscillation)
-    -> Render pass: point sprites / billboards with depth
-    -> Render pass: post-processing (bloom, ambient occlusion)
-    -> Present to QRenderWidget
-```
+### Anti-Pattern 3: Running Claude API Calls on the Main Thread
+**What:** Making synchronous Claude API calls that block the UI/render loop.
+**Why bad:** Claude API calls take 1-5 seconds. Blocking the main thread freezes the viewport and kills the "living sculpture" feel.
+**Instead:** Use the existing `EnrichmentWorker` pattern (QRunnable + QThreadPool) for all Claude API calls. Emit results via Qt signals.
 
-### Data Format Between Stages
+### Anti-Pattern 4: Making Every Parameter Change Restart the Simulation
+**What:** Calling `SimulationEngine.restart()` when creative parameters change.
+**Why bad:** Restart resets all particle positions to initial state, destroying the current sculpture state. PBF parameters can be changed mid-simulation without instability.
+**Instead:** All creative parameters should be hot-reloadable via uniform buffer updates. Only structural changes (particle count, initial positions) require restart.
 
-| Boundary | Format | Rationale |
-|----------|--------|-----------|
-| Filesystem -> Ingestion | JPEG/PNG/TIFF files | Standard photo formats |
-| Ingestion -> Extraction | numpy arrays (HWC uint8) | Universal image representation |
-| Extraction -> Feature Store | SQLite + .npz files | Queryable metadata + efficient array storage |
-| Feature Store -> Mapping | Python dataclasses | Type-safe, easy to serialize |
-| Mapping -> Scene | numpy arrays (Nx3 float32 for positions, etc.) | GPU-ready data layout |
-| Scene -> Viewport | wgpu Buffers | Direct GPU memory |
+### Anti-Pattern 5: Building a Node Editor for Parameter Mapping
+**What:** Complex visual programming interface for connecting features to parameters.
+**Why bad:** Over-engineering. The existing `MappingGraph` + `MappingConnection` model is sufficient. A node editor adds complexity without proportional value for an art tool where Claude handles the creative mapping.
+**Instead:** Keep the existing patch bay UI. Let Claude suggest connections programmatically via structured output.
 
-## Scaling Considerations
+## New Module Specifications
 
-| Concern | 1-10 photos | 100-1K photos | 1K-10K photos |
-|---------|-------------|---------------|---------------|
-| **Extraction time** | Seconds, inline | Minutes, background thread | Hours, background process with progress bar |
-| **Feature Store size** | < 100 MB, all in memory | 1-5 GB, memory-mapped | 5-50 GB, indexed queries only |
-| **Point cloud density** | 100K-1M points, trivial | 1M-10M points, LOD needed | 10M-100M points, octree + frustum culling mandatory |
-| **GPU memory (16GB VRAM)** | No concern | Point data fits (~160MB for 10M points) | Must stream/page, show LOD at distance |
-| **Aggregate statistics** | Per-image only | Meaningful cross-image patterns emerge | Clustering, dimensionality reduction needed (UMAP/t-SNE) |
+### Module: `simulation/pbf_solver.py`
 
-### GPU Memory Budget (RX 9060 XT, 16GB VRAM)
+**Purpose:** Orchestrate the PBF compute pipeline.
 
-```
-Rendering pipeline:
-  Framebuffer (4K RGBA):       ~33 MB
-  Depth buffer (4K):           ~16 MB
-  Post-process buffers:        ~66 MB
-  Total rendering overhead:   ~115 MB
+**Interface:**
+```python
+class PBFSolver:
+    def __init__(self, device, max_particles: int):
+        """Build all PBF compute pipelines."""
 
-Point cloud data (per million points):
-  Positions (float32 x3):      12 MB
-  Colors (float32 x4):         16 MB
-  Sizes (float32):              4 MB
-  Velocities (float32 x3):    12 MB
-  Total per 1M points:        ~44 MB
+    def step(self, particle_buffer: ParticleBuffer, params: SimulationParams):
+        """Execute one PBF frame: predict -> hash -> solve -> finalize."""
 
-Budget for points: ~15 GB available -> ~340M points theoretical max
-Practical limit with animation buffers: ~50-100M points at 60fps
+    @property
+    def solver_iterations(self) -> int:
+        """Number of constraint solver iterations (1=gas, 4=liquid)."""
 ```
 
-### Extraction Performance Strategy
+**Compute passes per frame (5 dispatches):**
+1. `pbf_predict` -- apply external forces, compute predicted positions
+2. `pbf_hash` -- build spatial hash from predicted positions (3 sub-passes: count, prefix-sum, scatter)
+3. `pbf_density` -- compute density and constraint lambda per particle
+4. `pbf_correct` -- compute and apply position corrections with artificial pressure
+5. `pbf_finalize` -- compute velocity from position delta, vorticity confinement, XSPH viscosity
 
-| Extractor | Tool | AMD GPU Acceleration | Fallback |
-|-----------|------|---------------------|----------|
-| Edge/contour | OpenCV | CPU (fast enough) | N/A |
-| Depth map | Depth Anything V2 | ONNX Runtime + DirectML | CPU (slow but works) |
-| Object detection | YOLOv8 | ONNX Runtime + DirectML | CPU |
-| Color palette | scikit-image / numpy | CPU (fast) | N/A |
-| Embeddings | CLIP | ONNX Runtime + DirectML | CPU |
-| Mood/narrative | Claude API | Cloud | Skip (optional) |
+### Module: `api/claude_director.py`
 
-**Key insight:** DirectML is the primary GPU inference path for AMD on Windows. It works with any DirectX 12 GPU without vendor-specific drivers. PyTorch + ROCm is now available for RX 9000 series on Windows (ROCm 7.2+), but DirectML via ONNX Runtime is more battle-tested and model-portable.
+**Purpose:** Generate creative sculpture parameters via Claude API.
 
-## Anti-Patterns
+**Interface:**
+```python
+class ClaudeDirector:
+    def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
+        """Initialize with API credentials."""
 
-### Anti-Pattern 1: Monolithic Extract-and-Render Loop
+    def generate_direction(
+        self,
+        image_path: str | None,
+        clip_tags: list[tuple[str, float]],
+        current_params: SimulationParams,
+        user_mood: str | None = None,
+    ) -> SculptureDirection:
+        """Generate a creative parameter set. Blocking call."""
 
-**What:** Processing images and rendering in the same thread/loop, blocking the viewport while extraction runs.
-
-**Why bad:** Extraction of depth maps can take 1-5 seconds per image. The viewport would freeze during batch processing of hundreds of images. Users would think the app crashed.
-
-**Instead:** Extraction runs in background threads (or a subprocess). The Feature Store is the async boundary. The viewport renders whatever data is available, progressively updating as new features arrive.
-
-### Anti-Pattern 2: Storing Point Clouds as Python Objects
-
-**What:** Representing millions of points as lists of Python objects or dataclass instances.
-
-**Why bad:** A Python object has ~100 bytes overhead. 10M points = 1GB just for object headers, plus GC pressure that causes frame stutters.
-
-**Instead:** Use contiguous numpy arrays (float32) for all point data. Upload to GPU buffers via wgpu. Never iterate points in Python -- operate on arrays or let compute shaders handle per-point logic.
-
-### Anti-Pattern 3: Tight Coupling Between Extraction and Rendering
-
-**What:** Rendering code directly calls extraction functions, or extraction code knows about rendering parameters.
-
-**Why bad:** Makes it impossible to re-render with different mappings without re-extracting. Makes it impossible to swap rendering backends. Makes testing extraction without a GPU impossible.
-
-**Instead:** The Feature Store is the clean boundary. Extraction writes to it. Rendering reads from it. They share data schemas but no code.
-
-### Anti-Pattern 4: Hardcoded Feature-to-Visual Mappings
-
-**What:** Writing code like `point.z = depth_map[y][x] * 50` scattered throughout the codebase.
-
-**Why bad:** Destroys the High-Control / Discovery mode requirement. Every new mapping requires code changes.
-
-**Instead:** Mappings are data. The Mapping Engine interprets them. Users configure them via the GUI.
-
-### Anti-Pattern 5: Loading All Photos into GPU Memory
-
-**What:** Uploading all source images as textures to the GPU.
-
-**Why bad:** 1000 photos at 4K resolution = ~48 GB of uncompressed texture data. Exceeds any consumer GPU.
-
-**Instead:** Photos are processed into features and then discarded from GPU memory. Only thumbnails are kept for the GUI. The point cloud IS the rendered representation -- the original photos are not rendered.
-
-## Integration Points
-
-### Internal Integration
-
-| From | To | Mechanism | Notes |
-|------|----|-----------|-------|
-| GUI -> Ingestion | Function call + signal | User triggers import, progress bar updates via signals |
-| GUI -> Mapping | Qt signals/slots | Slider changes emit signals, mapping engine subscribes |
-| Ingestion -> Extraction | Queue (in-process) | `queue.Queue` or `asyncio.Queue` |
-| Extraction -> Feature Store | Direct write | Extractor calls `store.store_features()` |
-| Feature Store -> Mapping | Direct read | Mapping engine calls `store.get_features()` |
-| Mapping -> Scene | Direct mutation | Mapping engine updates scene graph arrays |
-| Scene -> Viewport | wgpu buffer upload | `device.queue.write_buffer()` per frame if dirty |
-| Animation -> Scene | Per-frame update | Compute shader dispatch, no CPU round-trip |
-
-### External Integration
-
-| System | Protocol | Required? | Notes |
-|--------|----------|-----------|-------|
-| Claude API | HTTPS REST | Optional | Semantic annotation, artistic suggestions |
-| Filesystem | OS APIs | Required | Photo loading, feature store persistence |
-| ONNX Runtime | In-process C library | Required | ML model inference for depth, detection |
-| DirectML | DirectX 12 driver | Required | GPU acceleration for ONNX models |
-
-### Build Order (Dependency Chain)
-
-The architecture implies this build sequence:
-
+    def generate_variation(
+        self,
+        base_direction: SculptureDirection,
+        variation_type: str,  # "subtle", "dramatic", "complement"
+    ) -> SculptureDirection:
+        """Generate a variation on an existing direction."""
 ```
-Phase 1: Foundation
-    Image Ingestion (no dependencies)
-    Feature Store schema + persistence (no dependencies)
-    Basic PySide6 window with wgpu viewport (no dependencies)
-    -> Milestone: Can load photos and see an empty 3D viewport
 
-Phase 2: Extraction
-    Geometry extractor (depends on: ingestion, feature store)
-    Color extractor (depends on: ingestion, feature store)
-    -> Milestone: Can extract features from photos and persist them
+**Relationship to existing `EnrichmentService`:** ClaudeDirector replaces the `suggest_mappings()` method with a more structured approach. `enrich_tags()` stays as-is for semantic enrichment. The two services can share the Anthropic client instance.
 
-Phase 3: Point Cloud Generation
-    Basic mapping engine (depends on: feature store)
-    Point cloud from extracted features (depends on: mapping, viewport)
-    Camera controls (depends on: viewport)
-    -> Milestone: Photos become explorable 3D point clouds
+### Module: `api/parameter_schema.py`
 
-Phase 4: Interactivity
-    Parameter sliders wired to mapping engine (depends on: GUI, mapping)
-    Real-time mapping updates (depends on: mapping, scene, viewport)
-    High-Control mode (depends on: all above)
-    -> Milestone: User can tune every parameter and see live results
+**Purpose:** Pydantic models defining valid parameter ranges for Claude output.
 
-Phase 5: Animation + Polish
-    Flow fields and particle physics (depends on: scene, compute shaders)
-    Discovery mode (depends on: feature store aggregate, mapping)
-    Semantic extraction + Claude integration (depends on: feature store)
-    -> Milestone: Flowing, organic data sculptures with discovery mode
+**Key types:**
+```python
+class SculptureDirection(BaseModel):
+    """Complete creative direction from Claude."""
+    # All simulation params with validated ranges
+    # Creative metadata (title, description, mood, reasoning)
+
+class DirectionVariation(BaseModel):
+    """A variation on an existing direction."""
+    # Subset of params that changed + reasoning
 ```
+
+### Module: `gui/panels/claude_panel.py`
+
+**Purpose:** UI panel for Claude creative direction.
+
+**Elements:**
+- "Get Direction" button -- triggers Claude API call with current photo context
+- Mood text input -- optional user guidance ("make it feel oceanic")
+- Direction display -- shows Claude's title, description, reasoning
+- "Apply" / "Apply with Crossfade" buttons
+- "Variation" buttons -- subtle/dramatic/complement
+- History list -- previous directions with one-click re-apply
+
+## Modifications to Existing Components
+
+### `simulation/engine.py` -- Major Refactor
+
+- Remove SPH pipeline construction (`_build_sph_pipelines`, `_rebuild_sph_bind_group`)
+- Remove forces pipeline (forces computation moves into PBF predict pass)
+- Remove inline flow field from `integrate.wgsl` (moves to PBF predict)
+- Add `PBFSolver` instantiation and delegation
+- Keep double-buffered `ParticleBuffer` (PBF uses same pattern)
+- Add `solver_iterations` parameter
+- Remove `_performance_mode` flag (PBF is inherently fast)
+
+### `simulation/buffers.py` -- Moderate Changes
+
+- Remove `build_spatial_hash()` Python method (GPU hash replaces it)
+- Add `predicted_positions_buffer` (PBF needs separate predicted vs current)
+- Add `lambda_buffer` (constraint multipliers, f32 per particle)
+- Add `delta_position_buffer` (position corrections, vec4 per particle)
+- Keep existing `cell_counts`, `cell_offsets`, `sorted_indices` buffers
+
+### `simulation/parameters.py` -- Add PBF Parameters
+
+New fields:
+```python
+solver_iterations: int = 4        # PBF constraint iterations
+rest_density_pbf: float = 6000.0  # target density (tuned for point cloud scale)
+epsilon_pbf: float = 100.0        # relaxation parameter
+artificial_pressure_k: float = 0.1  # tensile instability prevention
+artificial_pressure_n: float = 4    # kernel power for artificial pressure
+vorticity_epsilon: float = 0.01   # vorticity confinement strength
+xsph_c: float = 0.01             # XSPH viscosity coefficient
+```
+
+Remove or deprecate: `gas_constant`, `pressure_strength` (SPH-specific).
+
+### `simulation/shaders/` -- Replace WGSL Files
+
+| Current File | Action | Replacement |
+|-------------|--------|-------------|
+| `integrate.wgsl` | **DELETE** | `pbf_predict.wgsl` + `pbf_finalize.wgsl` |
+| `forces.wgsl` | **DELETE** | Force computation inlined in `pbf_predict.wgsl` |
+| `sph.wgsl` | **DELETE** | `pbf_density.wgsl` + `pbf_correct.wgsl` |
+| `noise.wgsl` | **KEEP** | Shared noise functions, imported by pbf_predict |
+| `flow_field.wgsl` | **KEEP** | Referenced by pbf_predict for artistic flow forces |
+
+### `gui/widgets/viewport_widget.py` -- Eliminate CPU Readback
+
+Replace `_update_points_from_sim()` which does full CPU readback:
+
+```python
+# Current (slow): GPU -> CPU -> numpy -> new gfx.Buffer -> GPU
+positions = self._sim_engine._particle_buffer.read_positions()
+geo.positions = gfx.Buffer(positions.astype(np.float32))
+
+# Target (fast): Update gfx.Buffer data in-place, let pygfx sync
+# Or: Use compute output buffer directly via custom material
+```
+
+### `gui/main_window.py` -- Wire Claude Panel
+
+- Add `ClaudePanel` to right sidebar (between Controls and Simulation)
+- Wire `ClaudeDirector` signals to parameter crossfade system
+- Add keyboard shortcut (Ctrl+D) for "Get Direction"
+
+### `gui/theme.py` -- UI Rework
+
+The UI rework is primarily a theme/layout concern, not architectural. Key changes:
+- White/light viewport background option (user requested)
+- Consistent spacing system (4px grid)
+- Collapsible panel headers
+- Better visual hierarchy with section dividers
+
+## Scalability Considerations
+
+| Concern | At 100K particles | At 1M particles | At 5M particles |
+|---------|-------------------|-----------------|-----------------|
+| PBF solver | 60fps easily | 30-60fps with 4 iterations | 15-30fps, reduce to 2 iterations |
+| Spatial hash | Negligible | ~1ms GPU | ~3ms GPU |
+| CPU readback | 0.4ms | 4ms (kills framerate) | 20ms (unusable) |
+| GPU buffer sharing | 0ms | 0ms | 0ms |
+| Claude API latency | N/A (async) | N/A (async) | N/A (async) |
+| Memory (16GB VRAM) | ~50MB | ~500MB | ~2.5GB (fine) |
+
+The 16GB VRAM on the RX 9060 XT is generous. PBF buffers per particle: position(16B) + predicted_pos(16B) + velocity(16B) + lambda(4B) + color(16B) + delta_pos(16B) = 84 bytes. At 5M particles = 420MB, well within budget.
+
+## Build Order (Dependency-Aware)
+
+This ordering minimizes wasted work and ensures each step produces testable results:
+
+### Phase A: Fix Physics (blocks everything else)
+1. **Fix double gravity/wind** in existing shaders (30 min fix, immediate improvement)
+2. **Add force clamping** to existing integration shader (quick stability win)
+3. **Implement PBF solver** with new WGSL shaders
+4. **Per-frame GPU spatial hash** (required by PBF)
+5. **Remove old SPH/forces pipeline** from SimulationEngine
+6. **Add PBF parameters** to SimulationParams
+
+### Phase B: Eliminate CPU Readback (blocks performance at scale)
+7. **GPU buffer sharing** between compute and render
+8. **Test at 1M+ particles** to validate performance
+
+### Phase C: Claude Creative Direction (independent of physics)
+9. **ParameterSchema** Pydantic models
+10. **ClaudeDirector** with structured outputs
+11. **ClaudePanel** UI
+12. **Parameter crossfade** system
+13. **Wire into MainWindow**
+
+### Phase D: UI Rework (independent, can parallel with C)
+14. **Theme rework** -- spacing, colors, viewport background
+15. **Panel layout cleanup** -- collapsible sections, visual hierarchy
+16. **Claude Panel integration** into sidebar
+
+**Phase A must come first** because nothing else matters if the particles explode. Phase B should follow because it removes the performance ceiling. Phases C and D can run in parallel after A.
 
 ## Sources
 
-- [wgpu-py (WebGPU for Python)](https://github.com/pygfx/wgpu-py) -- GPU rendering layer, Vulkan/DX12 backend
-- [pygfx render engine](https://github.com/pygfx/pygfx) -- 3D scene graph built on wgpu-py
-- [rendercanvas Qt integration](https://rendercanvas.readthedocs.io/latest/backends.html) -- QRenderWidget for PySide6 embedding
-- [ONNX Runtime DirectML](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html) -- GPU-accelerated ML inference on AMD
-- [AMD ONNX + DirectML guide](https://gpuopen.com/learn/onnx-directlml-execution-provider-guide-part1/) -- AMD-specific guidance
-- [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) -- Monocular depth estimation
-- [Depth Anything ONNX export](https://github.com/fabio-sim/Depth-Anything-ONNX) -- ONNX-compatible depth model
-- [AMD ROCm on Radeon for Windows](https://www.amd.com/en/blogs/2025/the-road-to-rocm-on-radeon-for-windows-and-linux.html) -- PyTorch + ROCm on RDNA 4
-- [ROCm 7.2 release](https://github.com/ROCm/ROCm/releases) -- RDNA 4 support confirmation
-- [Open3D v0.19 GPU support](https://www.open3d.org/2025/01/09/open3d-v0-19-is-out-with-new-features-and-more-gpu-support/) -- SYCL backend for AMD
-- [Vulkan compute shaders tutorial](https://docs.vulkan.org/tutorial/latest/11_Compute_Shader.html) -- GPU compute fundamentals
-- [Rendering Point Clouds with Compute Shaders (Schuetz 2021)](https://arxiv.org/pdf/2104.07526) -- Point cloud rendering techniques
-- [Refik Anadol process](https://www.theartnewspaper.com/2024/04/05/on-process-refik-anadol-seeks-to-demystify-ai-art-by-showing-how-it-is-put-together) -- Artistic reference for data sculpture pipeline
-- [Variable.io generative data art](https://variable.io/generative-and-data-art/) -- Industry reference for data-driven art systems
+- [Position Based Fluids -- Macklin & Muller 2013](https://mmacklin.com/pbf_sig_preprint.pdf) -- HIGH confidence, foundational paper
+- [pygfx documentation](https://docs.pygfx.org/stable/basics.html) -- HIGH confidence, official docs
+- [wgpu-py GitHub](https://github.com/pygfx/wgpu-py) -- HIGH confidence, official source
+- [Claude Structured Outputs documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) -- HIGH confidence, official Anthropic docs
+- [SPH CFL condition and timestep stability](https://www.simscale.com/blog/cfl-condition/) -- HIGH confidence, well-established numerical methods
+- [DualSPHysics SPH formulation](https://github.com/DualSPHysics/DualSPHysics/wiki/3.-SPH-formulation) -- MEDIUM confidence, reference implementation
+- [WebGPU Fluid Simulations -- Codrops](https://tympanus.net/codrops/2025/02/26/webgpu-fluid-simulations-high-performance-real-time-rendering/) -- MEDIUM confidence, contemporary WebGPU fluid work
+- [Houdini FLIP Solver docs](https://www.sidefx.com/docs/houdini/nodes/dop/flipsolver.html) -- HIGH confidence, industry reference for CFL in fluid sim
+- [XPBD GPU-based approach 2025](https://asmedigitalcollection.asme.org/IDETC-CIE/proceedings-abstract/IDETC-CIE2025/89213/V02BT02A008/1225800) -- MEDIUM confidence, confirms GPU XPBD viability
+- [SPH tensile instability remedies](https://www.sciencedirect.com/science/article/abs/pii/S0965997824002552) -- MEDIUM confidence, academic source
+- [Claude structured outputs with Pydantic](https://thomas-wiegold.com/blog/claude-api-structured-output/) -- MEDIUM confidence, verified against official docs
+- [wgpu-py buffer mapping discussion](https://github.com/pygfx/wgpu-py/issues/114) -- HIGH confidence, official repo issue

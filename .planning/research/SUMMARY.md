@@ -1,167 +1,181 @@
 # Project Research Summary
 
-**Project:** Apollo 7
-**Domain:** Data-driven generative art pipeline (photo-to-data-sculpture, desktop, AMD GPU)
-**Researched:** 2026-03-14
-**Confidence:** MEDIUM
+**Project:** Apollo 7 v2.0 -- "Make It Alive"
+**Domain:** Real-time generative art -- photo-to-sculpture pipeline with living particle physics
+**Researched:** 2026-03-15
+**Confidence:** HIGH
 
 ## Executive Summary
 
-Apollo 7 is a desktop application that transforms collections of photographs into explorable 3D data sculptures -- point clouds and particle systems driven by extracted image features (color, edges, depth, semantics). The closest commercial analogues are Refik Anadol's studio installations, but Apollo 7 targets a single artist on a single machine with a GUI, not a team of engineers with GPU clusters. The competitive landscape (TouchDesigner, Processing, openFrameworks, Houdini) requires programming or node-wiring; Apollo 7's differentiator is a zero-code, end-to-end photo-to-sculpture workflow with AI-guided discovery.
+Apollo 7 v2.0 transforms a working photo-to-point-cloud pipeline into a living data sculpture engine. The v1.0 foundation (Python 3.12, PySide6, pygfx/wgpu, ONNX+DirectML) is sound and should be kept entirely -- the problems are in physics implementation, not technology choices. The single most critical finding across all research is that **particles explode because of structural simulation bugs** (stale spatial hash, double-counted gravity, unbounded kernel coefficients, no force clamping), not because of wrong parameter values. All four research files converge on this: fix the physics first, everything else is downstream.
 
-The recommended approach is a staged pipeline architecture with a persistent Feature Store as the central decoupling point. Photos flow through extraction (OpenCV, Depth Anything V2, CLIP via ONNX+DirectML), features are stored to disk (SQLite + numpy arrays), a declarative Mapping Engine translates features to visual parameters, and pygfx (WebGPU/Vulkan) renders the result at 60fps in a PySide6 desktop shell. The AMD RX 9060 XT constraint drives a dual-path GPU strategy: PyTorch+ROCm for heavy ML inference, ONNX Runtime+DirectML as a portable fallback, and wgpu for all rendering and compute shaders. This redundancy is deliberate -- ROCm on Windows is functional but young.
+The recommended approach is threefold. First, replace the current SPH force-based solver with Position Based Fluids (PBF), which is unconditionally stable and purpose-built for real-time GPU particle art. Add per-particle home position attraction to create coherent forms. Second, add Claude as a creative director using structured outputs with Pydantic schemas to generate validated simulation parameters from photo analysis. Third, polish the UI with qt-material theming and a tiered parameter interface. The stack additions are minimal: only `anthropic`, `pydantic`, and `qt-material` as new dependencies. All fluid physics work uses existing WGSL compute shaders on the same wgpu device -- no second GPU compute framework.
 
-The primary risks are: (1) ROCm/DirectML model compatibility gaps discovered late, (2) scaling failures when moving from 100 to 5,000+ photos, and (3) GUI-renderer integration issues between PySide6 and the wgpu viewport. All three must be validated in Phase 1 before building features on top. The mitigation strategy is to build and test the GPU compute paths, Feature Store, and PySide6+pygfx integration as the first deliverables, proving the architecture before adding extraction or creative features.
+The key risks are AMD RDNA 4 driver maturity for compute workloads (mitigate by testing on target hardware immediately after physics rebuild), UI rework scope creep (mitigate by defining fixed scope before starting), and LLM latency disrupting the real-time feel (mitigate by always running Claude calls asynchronously with parameter crossfade on apply). The "alive" formula distilled from Anadol studio research, Houdini workflows, and Bridson's curl-noise paper is four forces in dynamic equilibrium: home attraction (cohesion), curl noise (flow), vortex confinement (persistent swirls), and velocity-dependent damping (stability).
 
 ## Key Findings
 
 ### Recommended Stack
 
-The AMD GPU constraint on Windows is the single biggest technology driver. Python 3.12 is mandatory (ROCm wheels are cp312-only). The stack splits into three independent GPU paths that provide fault isolation: PyTorch+ROCm 7.2 for heavy ML models, ONNX Runtime+DirectML for lighter models and as a fallback, and pygfx/wgpu for all 3D rendering via Vulkan/DX12.
+The entire v1.0 stack is kept. Only three new packages are needed for v2.0: `anthropic` (Claude API), `pydantic` (parameter schemas), and `qt-material` (UI theming). The most important stack decision is **not adding a second GPU compute framework**. Taichi Lang, NVIDIA Warp, PySPH, and pySPlisHSPlasH were all evaluated and rejected -- Taichi has no GPU buffer interop with wgpu/pygfx (forcing CPU roundtrips), Warp is CUDA-only (dead on AMD), and PySPH is scientific-focused with no real-time rendering integration. The right approach is expanding existing WGSL compute shaders that share GPU buffers with the pygfx renderer at zero copy cost.
 
-**Core technologies:**
-- **Python 3.12 + conda**: Runtime pinned by ROCm wheel requirements. conda recommended by AMD for environment isolation
-- **PyTorch 2.9.1 + ROCm 7.2**: GPU-accelerated inference for Depth Anything, semantic models on RX 9060 XT
-- **ONNX Runtime + DirectML**: Portable GPU inference for CLIP, edge detection CNNs. Works on any DX12 GPU, no vendor-specific driver needed
-- **pygfx 0.16.0 + wgpu-py 0.31.0**: 3D rendering engine built on WebGPU. Vendor-agnostic, renders via Vulkan/DX12. Point clouds, particles, custom WGSL compute shaders
-- **PySide6 6.8+**: Desktop GUI with dockable panels, sliders. Official Qt integration with pygfx via rendercanvas
-- **OpenCV + scikit-image**: CPU-based image feature extraction (edges, contours, textures, histograms)
-- **Depth Anything V2**: Monocular depth estimation. Start with V2 (proven), upgrade to V3 after ONNX export validation
+**Core technologies (kept):**
+- **pygfx 0.16.0 + wgpu-py 0.31.0:** Unified GPU compute + rendering on AMD via Vulkan/DX12
+- **PySide6 6.8+:** Desktop GUI, proven pygfx integration via rendercanvas
+- **ONNX + DirectML:** Lightweight GPU inference for Depth Anything V2
 
-**Critical version requirement:** AMD driver 26.1.1+ must be installed before ROCm wheels. Without it, PyTorch silently falls back to CPU.
+**New additions:**
+- **anthropic 0.84.0:** Claude API with structured outputs and tool use for creative direction
+- **pydantic 2.x:** Parameter schema validation, guarantees Claude returns valid simulation params
+- **qt-material 2.17:** Material Design theming for instant professional polish
 
 ### Expected Features
 
-**Must have (table stakes -- P0):**
-- Single-image ingestion with color + edge extraction
-- Point cloud generation from extracted features
-- Real-time 3D viewport with orbit/zoom/pan (30+ FPS at 100K+ points)
-- Parameter controls (sliders for point size, color mapping, density)
-- Save/load project state
-- Export still images
+**Must have (table stakes -- without these, particles still look like exploding pixels):**
+- Per-particle home position attraction (THE critical missing piece for coherent forms)
+- Velocity-dependent damping (prevents runaway particles, creates viscous-fluid feel)
+- Force balance presets (6-8 curated sets proving the physics work)
+- Breathing/pulse modulation (sine-wave modulation of home_strength and noise_amplitude)
+- Round soft-edged points with additive blending (art quality, not debug quality)
+- Smooth parameter interpolation (all changes lerp over 0.3-1.0 seconds)
+- Consistent 60fps at 500K+ particles
 
-**Should have (core experience -- P1):**
-- Batch image ingestion with progress feedback
-- Depth estimation via monocular model (richer 3D geometry)
-- Basic particle system with noise-driven motion
-- Preset save/load
-- Undo/redo for parameter changes
+**Should have (differentiators -- elevate from "tool" to "artistic instrument"):**
+- Multi-octave time evolution (large-scale slow motion, small-scale fast flicker)
+- Vortex confinement force (persistent swirling without added energy)
+- Claude creative director (photo analysis to parameter suggestion with artistic rationale)
+- Tiered parameter UI (6 essential sliders visible, advanced collapsed)
+- Depth-aware point sizing (cinematic perspective)
+- Color field evolution (iridescent shimmer as colors flow through the sculpture)
 
-**Differentiators (competitive advantage -- P2):**
-- Discovery mode: AI-guided composition proposals based on extracted feature distributions
-- Semantic feature extraction (CLIP/BLIP local models)
-- Feature-to-visual mapping editor (explicit, rewirable connections)
-- Claude API integration for creative direction
-- Multi-photo pattern emergence (collection-level analysis)
-- Preset interpolation + live parameter animation
+**Defer to v2.5+:**
+- Shape morphing between targets (needs stable home positions proven first)
+- Particle trails (rendering complexity vs. impact unclear -- prototype first)
+- Audio reactivity (entire separate domain, defer to v3.0)
 
-**Defer indefinitely:** Node editor, video input, camera feed, cloud rendering, plugin system, mesh export, social features, multi-user collaboration.
+**Anti-features (explicitly do NOT build):**
+- Full Navier-Stokes solver, mesh reconstruction, node-based editor, real-time video export
 
 ### Architecture Approach
 
-The system is a staged pipeline with a Feature Store as the decoupling boundary between offline extraction and real-time rendering. Extraction is batch/background work; rendering is 60fps interactive. The Mapping Engine translates features to visuals via declarative data structures (not code), enabling both High-Control mode (user edits mappings) and Discovery mode (system proposes mappings) through the same mechanism. Qt signals/slots provide observer-pattern live updates from sliders to viewport.
+Replace SPH with Position Based Fluids (PBF) as the simulation backbone. PBF is unconditionally stable because it solves positional constraints directly rather than accumulating forces that can explode. The compute pipeline becomes 5 GPU dispatches per frame: predict positions, build spatial hash (GPU, every frame), compute density constraints, apply position corrections, finalize velocities with vorticity confinement and XSPH viscosity. Eliminate the CPU readback bottleneck by sharing GPU buffers directly between compute and render. Add a Claude Parameter Pipeline as a new top-level module using structured outputs with Pydantic schemas.
 
-**Major components:**
-1. **Image Ingestion** -- Load, validate, thumbnail, queue photos. Entry point for all data
-2. **Feature Extractors** (Geometry, Color, Semantic) -- Independent extractors with a shared interface. Each writes to the Feature Store
-3. **Feature Store** -- SQLite metadata + numpy .npz arrays on disk. Process once, explore many times. Versioned schema from day one
-4. **Mapping Engine** -- Declarative feature-to-visual parameter translation. Curves, ranges, weights as data, not code
-5. **Scene Graph + Animation Engine** -- Point clouds, particles, flow fields, camera. GPU-resident data updated via compute shaders
-6. **3D Viewport** -- pygfx/wgpu rendering embedded in PySide6 via rendercanvas WgpuWidget
-7. **Desktop GUI** -- PySide6 main window with dockable panels, parameter controls, import UI
+**Major components (new/modified):**
+1. **PBFSolver** (NEW) -- Orchestrate 5 compute passes per frame, unconditionally stable fluid solver
+2. **ClaudeDirector** (NEW) -- Generate creative parameters via Claude structured outputs, always async
+3. **ParameterSchema** (NEW) -- Pydantic models with bounded ranges for guaranteed valid Claude output
+4. **ClaudePanel** (NEW) -- UI for creative direction interaction with apply/crossfade controls
+5. **SimulationEngine** (MODIFIED) -- Delegate to PBFSolver, remove broken SPH/forces pipeline
+6. **ViewportWidget** (MODIFIED) -- Eliminate CPU readback, share GPU buffers with pygfx
 
 ### Critical Pitfalls
 
-1. **ROCm on Windows is not ROCm on Linux (CP-1)** -- Windows ROCm is a subset. Use ONNX+DirectML as the primary portable inference path; treat ROCm as a performance bonus. Test every model on AMD hardware in Phase 1, not Phase 3.
+1. **SPH kernel coefficients blow up at small smoothing radii** -- poly6 denominator `h^9 = 1e-9` produces astronomical kernel values. Solution: replace SPH with PBF which is unconditionally stable, or normalize kernels to spatial scale and clamp forces.
 
-2. **The "works on 100 photos" scaling wall (CP-2)** -- Per-image feature data accumulates to hundreds of GB at scale. Design a disk-backed Feature Store from day one with batch processing, resume-on-failure, and incremental aggregation. Never hold all features in RAM.
+2. **Stale spatial hash causes ghost forces** -- `build_spatial_hash()` runs only at init, not per-frame. After frame 1, neighbor lookups are wrong and forces become erratic. Solution: GPU-side prefix-sum spatial hash rebuilt every frame.
 
-3. **VRAM exhaustion during real-time rendering (CP-3)** -- Naive point clouds from thousands of photos can exceed hundreds of millions of points. Implement a point budget system, LOD, frustum culling, and importance sampling. Budget is ~50-100M points at 60fps on 16GB VRAM.
+3. **Force accumulation without clamping** -- Multiple force systems sum to unbounded totals. A single near-coincident pair produces near-infinite repulsion that cascades. Solution: clamp total force magnitude before integration; budget per-system contributions.
 
-4. **ML model ecosystem assumes CUDA (CP-4)** -- All models must be converted to ONNX and validated with DirectML before integration. Ship ONNX files, not PyTorch checkpoints. Keep CPU fallback tested.
+4. **AMD RDNA 4 compute gotchas** -- TDR timeouts (Windows kills GPU commands > 2 seconds), RDNA 4 driver immaturity for compute workloads, no CUDA fallback. Solution: profile dispatch timing, test on target hardware early, implement GPU error recovery.
 
-5. **GUI framework vs renderer event loop conflict (CP-5)** -- PySide6 and wgpu both want to own the main loop. Use rendercanvas Qt backend (WgpuWidget) to embed the viewport in Qt. If integration fails, GLFW fallback window is the escape hatch. Validate this integration first.
+5. **UI rework scope creep** -- 1700-line main_window.py with interleaved concerns tempts full rewrite. Solution: restructure (extract logic to controller), don't rewrite. Theme changes first, layout second. Fixed written scope before starting.
 
 ## Implications for Roadmap
 
-### Phase 1: Foundation and Pipeline Core
-**Rationale:** The architecture has four must-validate risks (GPU compute paths, Feature Store scaling, model ONNX compatibility, PySide6+pygfx integration) that all need to be proven before any creative features are built. Getting this wrong causes full rewrites.
-**Delivers:** Working GPU pipeline proof: load a photo, extract basic features (color + edges), store in Feature Store, render a simple point cloud in a PySide6 window with orbit camera.
-**Addresses features:** Image ingestion (P0), basic extraction (P0), point cloud rendering (P0), 3D viewport (P0)
-**Avoids pitfalls:** CP-1 (GPU strategy locked), CP-2 (Feature Store designed), CP-4 (ONNX validated on AMD), CP-5 (GUI+renderer proven), TD-2 (extractor plugin interface), TD-3 (schema versioning)
+Based on research, suggested phase structure:
 
-### Phase 2: Core Creative Experience
-**Rationale:** With the pipeline proven, this phase adds the features that make the tool usable for actual creative work. Depth estimation adds 3D richness, parameter controls add interactivity, particles add life. This is where the product becomes compelling.
-**Delivers:** Interactive data sculpture tool: depth-enhanced point clouds, real-time parameter tuning, basic particle motion, save/load, export.
-**Addresses features:** Depth estimation (P1), parameter controls (P0), particle system (P1), save/load (P0), export (P1), batch ingestion (P1), undo/redo (P1), presets (P1)
-**Avoids pitfalls:** CP-3 (VRAM management with point budgets/LOD), IG-2 (color space pipeline), IG-3 (coordinate conventions), PT-1 (minimize CPU-GPU transfers), PT-3 (importance sampling, not one-point-per-pixel)
+### Phase 1: Fix the Physics (PBF Solver + Core Forces)
+**Rationale:** All four research files identify broken physics as THE blocker. Nothing else matters if particles explode. Architecture research provides a detailed PBF implementation plan. This phase has clear success criteria: particles form coherent shapes and stay alive indefinitely.
+**Delivers:** Stable, unconditionally-stable particle simulation with coherent organic motion.
+**Addresses:** Per-particle home positions, velocity-dependent damping, force balance presets, breathing modulation, per-frame GPU spatial hash, force clamping, double-gravity fix.
+**Avoids:** SPH kernel explosion (Pitfall 1), stale spatial hash (Pitfall 2), force accumulation overflow (Pitfall 3).
+**Stack:** Existing wgpu-py compute shaders only. No new dependencies.
+**Verification:** Particles stay coherent for 1000+ frames. Max force magnitude never exceeds MAX_FORCE. No NaN/Inf values. 60fps at 500K particles on RX 9060 XT without TDR.
 
-### Phase 3: Differentiators and Discovery
-**Rationale:** The differentiating features (Discovery mode, semantic extraction, mapping editor, Claude integration) depend on a complete and stable extraction + rendering pipeline. They are high-complexity, high-value features that should only be attempted on a solid foundation.
-**Delivers:** AI-assisted creative workflow: semantic understanding of photos, discovery mode that proposes interesting sculptures, visual mapping editor, collection-level pattern emergence.
-**Addresses features:** Semantic extraction (P2), discovery mode (P2), feature-to-visual mapping editor (P2), Claude API (P2), multi-photo patterns (P2), preset interpolation (P2), parameter animation (P2)
-**Avoids pitfalls:** UX-1 (progressive preview during batch), UX-2 (parameter overload via progressive disclosure), UX-3 (undo/history)
+### Phase 2: Rendering Quality + Performance
+**Rationale:** With stable physics, make it look like art, not a debug visualization. Eliminate the CPU readback bottleneck that caps scalability. These are rendering concerns that build on stable simulation.
+**Delivers:** Gallery-quality point rendering, smooth parameter transitions, 60fps at 1M+ particles.
+**Addresses:** Round soft-edged points with additive blending, smooth parameter interpolation (crossfade system), multi-octave time evolution, vortex confinement, depth-aware point sizing, GPU buffer sharing (eliminate CPU readback).
+**Avoids:** Performance traps at scale (CPU readback is 4ms at 1M particles, 20ms at 5M).
+**Stack:** Existing wgpu-py + pygfx. No new dependencies.
+
+### Phase 3: UI Rework
+**Rationale:** Physics works and looks good -- now make the controls match. Must come after physics is stable so controls actually do something meaningful. Scope creep risk is high; define boundaries before starting.
+**Delivers:** Professional-looking interface with tiered parameter controls, qt-material theming, white viewport background option.
+**Addresses:** Tiered parameter UI (6 essential sliders), background color control, collapsible panels, consistent spacing.
+**Avoids:** UI scope creep (Pitfall 5). Theme changes first, layout second. Preserve all existing signal connections.
+**Stack:** qt-material 2.17 (new dependency).
+
+### Phase 4: Claude Creative Director
+**Rationale:** The "intelligent" layer that sits on top of working physics, good rendering, and polished UI. Requires the parameter crossfade system from Phase 2 to avoid visual popping. Requires the tiered UI from Phase 3 to display Claude's rationale elegantly.
+**Delivers:** Photo-aware AI creative direction with validated parameter generation and smooth application.
+**Addresses:** ClaudeDirector module, ParameterSchema (Pydantic), ClaudePanel UI, Claude preset naming, direction variations.
+**Avoids:** LLM latency in render loop (Pitfall 6 from PITFALLS.md). All API calls async via existing EnrichmentWorker pattern. Parameter crossfade prevents visual discontinuity.
+**Stack:** anthropic 0.84.0, pydantic 2.x (new dependencies).
+
+### Phase 5: Polish and Depth Quality
+**Rationale:** Final quality pass. Depth map post-processing improves the raw material that feeds everything. Can partially run in parallel with earlier phases.
+**Delivers:** Better depth maps (histogram equalization, CLAHE), color field evolution, remaining differentiators.
+**Avoids:** Depth map quality issues (Pitfall 7 from PITFALLS.md).
 
 ### Phase Ordering Rationale
 
-- **Dependencies flow strictly downward.** Point cloud rendering (Phase 2) requires the Feature Store and viewport (Phase 1). Discovery mode (Phase 3) requires semantic extraction and a working mapping engine (Phase 2). There are no shortcuts.
-- **Risk front-loading.** The four critical pitfalls (CP-1 through CP-5) all map to Phase 1 decisions. By proving GPU paths, Feature Store scaling, and GUI+renderer integration first, the project avoids late-stage architectural rework.
-- **The "critical path" from FEATURES.md is explicit:** Ingestion -> Extraction -> Point Cloud -> Viewport. Phase 1 builds the entire spine. Phase 2 enriches it. Phase 3 differentiates it.
-- **Each phase delivers a usable artifact.** Phase 1: "I can see my photos as a point cloud." Phase 2: "I can sculpt and explore." Phase 3: "The system helps me discover."
+- **Phase 1 must come first** because all research converges: broken physics blocks everything. Architecture research provides a complete PBF implementation plan with 5 compute shader passes. Pitfalls research identifies 3 critical bugs (stale hash, kernel explosion, force overflow) all fixed by this phase.
+- **Phase 2 before Phase 3** because rendering quality validates physics work visually, and the parameter crossfade system built here is needed by both UI (Phase 3) and Claude (Phase 4).
+- **Phase 3 before Phase 4** because Claude's creative direction needs the tiered UI and Claude panel integrated into a clean layout.
+- **Phases 3 and 4 could partially overlap** since Claude integration is architecturally independent (new modules, not modifications to existing UI code).
+- **Phase 5 is flexible** -- depth map quality work can happen any time, and color field evolution is a nice-to-have.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 1:** Needs research on PySide6 + rendercanvas WgpuWidget integration specifics (working examples exist but are sparse). Also needs hands-on validation of ONNX model conversion and DirectML operator support for Depth Anything V2 and CLIP.
-- **Phase 3:** Discovery mode has no established pattern in desktop tools. The "feature distribution -> aesthetic mapping proposal" algorithm is novel and will require experimentation. Claude API prompt engineering for artistic direction is also uncharted.
+- **Phase 1 (PBF Solver):** GPU prefix-sum implementation on AMD/wgpu needs validation. PBF algorithm is well-documented (Macklin & Muller 2013, 1000+ citations) but the specific wgpu-py compute shader integration for 5-pass pipeline needs prototyping. RDNA 4 wavefront size (32 vs 64 on older AMD) may affect workgroup size choices.
+- **Phase 2 (GPU Buffer Sharing):** pygfx custom shader API for reading from compute storage buffers has MEDIUM confidence. The exact wgpu buffer interop mechanism needs validation. Fallback (in-place buffer update) is known-good but slower.
 
-Phases with standard patterns (skip deep research):
-- **Phase 2:** Point cloud rendering with LOD, parameter controls via Qt signals/slots, particle systems with compute shaders -- all well-documented patterns with existing pygfx/wgpu examples and academic literature (Schutz et al.).
+Phases with standard patterns (skip research-phase):
+- **Phase 3 (UI Rework):** qt-material theming is one-line application. PySide6 layout restructuring is standard Qt development. Well-documented.
+- **Phase 4 (Claude Integration):** Anthropic structured outputs are production-ready. Pydantic schema generation works directly with the API. The existing EnrichmentWorker pattern provides the async template.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM-HIGH | Core rendering stack (pygfx, wgpu, PySide6) is well-documented and proven. ROCm on Windows is the uncertainty -- functional but young. DirectML fallback is solid. |
-| Features | MEDIUM | Table stakes and P1 features are well-understood. P2 differentiators (Discovery mode, mapping editor) have sparse precedent in desktop tools. Competitor analysis is strong. |
-| Architecture | MEDIUM | Individual components (pipeline, Feature Store, observer pattern) are standard. Their specific integration (pygfx in PySide6, ONNX+DirectML on AMD, wgpu compute shaders for particles) is bespoke and less documented. |
-| Pitfalls | HIGH | Pitfalls are concrete, actionable, and verified against current sources. GPU ecosystem pitfalls (CP-1, CP-4) are especially well-documented given AMD's recent ROCm Windows push. |
+| Stack | HIGH | All kept technologies are proven in v1.0. New additions (anthropic, pydantic, qt-material) are stable, well-documented packages with confirmed version compatibility. Taichi/Warp/PySPH rejection is well-reasoned with specific technical blockers. |
+| Features | HIGH | Feature list derived from Anadol studio analysis, Houdini/TouchDesigner patterns, and Bridson's curl-noise paper. The "four forces in equilibrium" formula is grounded in both academic and professional practice. Anti-features are well-justified. |
+| Architecture | HIGH | PBF algorithm is foundational (1000+ citations). Root cause analysis of explosion bugs is based on direct code review with specific line numbers. Component boundaries are clear. |
+| Pitfalls | HIGH | Pitfalls derived from direct codebase analysis (specific files, line numbers, mathematical proof of kernel coefficient explosion). AMD-specific risks are the lowest confidence area but mitigation strategies are concrete. |
 
-**Overall confidence:** MEDIUM -- the individual pieces are proven, but this specific combination (AMD GPU + WebGPU rendering + ML feature extraction + desktop creative tool) has few direct precedents. Phase 1 exists specifically to validate the integration.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **PySide6 + pygfx real-world performance**: The rendercanvas WgpuWidget is documented but real-world performance with complex scenes and simultaneous GUI interaction needs hands-on validation.
-- **Depth Anything V2 ONNX export on DirectML**: V2 is proven on CUDA. ONNX export exists but DirectML operator coverage for this specific model needs testing on RX 9060 XT hardware.
-- **WGSL compute shader development experience**: Writing particle physics in WGSL is possible but tooling (debugging, profiling) is immature compared to CUDA/GLSL. Development velocity is uncertain.
-- **Point cloud aesthetics**: The research covers technical rendering but not the artistic quality of point cloud sculptures. What makes a data sculpture "good" requires experimentation, not research.
-- **Windows 11 TDR behavior**: Long-running GPU compute dispatches (>2s) can trigger Windows Timeout Detection and Recovery. May need registry adjustment for heavy extraction workloads.
+- **GPU buffer sharing between wgpu compute and pygfx render:** MEDIUM confidence. The exact API for making pygfx read from a compute shader's output buffer needs prototyping. Fallback exists (in-place numpy update) but defeats the performance goal. Validate early in Phase 2.
+- **RDNA 4 compute shader behavior:** No project-specific testing evidence. RDNA 4 is new hardware with potentially immature compute drivers. Validate PBF solver on target hardware immediately after Phase 1 implementation, not at the end.
+- **PBF parameter tuning for artistic (not physical) results:** PBF is designed for physically plausible fluids. Tuning it for aesthetically pleasing data sculptures (where "physically wrong" may look better) requires experimentation. The `solver_iterations` parameter (1=gas, 4=liquid) provides the primary creative control, but rest_density and artificial pressure constants will need artistic tuning.
+- **qt-material + pygfx viewport interaction:** qt-material applies global stylesheets that could interfere with the wgpu viewport surface. Stack research suggests isolating the viewport widget via QSS specificity, but this needs verification.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [ROCm on Radeon/Ryzen -- PyTorch Windows Installation](https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/windows/install-pytorch.html)
-- [ONNX Runtime DirectML Execution Provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
-- [AMD GPUOpen -- ONNX DirectML Guide](https://gpuopen.com/learn/onnx-directlml-execution-provider-guide-part1/)
-- [pygfx GitHub + Documentation](https://github.com/pygfx/pygfx)
-- [wgpu-py GitHub](https://github.com/pygfx/wgpu-py)
-- [rendercanvas Qt Integration](https://rendercanvas.readthedocs.io/latest/backends.html)
-- [Depth Anything V2 GitHub](https://github.com/DepthAnything/Depth-Anything-V2)
-- [Rendering Point Clouds with Compute Shaders (Schutz et al.)](https://arxiv.org/pdf/2104.07526)
-- [ROCm 7.2.0 Release Notes](https://rocm.docs.amd.com/en/latest/about/release-notes.html)
+- [Position Based Fluids -- Macklin & Muller 2013](https://mmacklin.com/pbf_sig_preprint.pdf) -- foundational PBF algorithm
+- [pygfx 0.16.0 docs](https://docs.pygfx.org/stable/basics.html) -- rendering framework
+- [wgpu-py 0.31.0](https://github.com/pygfx/wgpu-py) -- GPU compute + rendering
+- [Anthropic Tool Use](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview) + [Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) -- Claude API patterns
+- [Bridson et al. -- Curl-Noise for Procedural Fluid Flow (2007)](https://www.researchgate.net/publication/216813629_Curl-noise_for_procedural_fluid_flow) -- flow field foundation
+- Direct codebase analysis of `sph.wgsl`, `forces.wgsl`, `integrate.wgsl`, `buffers.py`, `main_window.py` -- bug identification
+- [SideFX POP Attract Documentation](https://www.sidefx.com/docs/houdini/nodes/dop/popattract.html) -- home position attraction pattern
 
 ### Secondary (MEDIUM confidence)
-- [AMD Blog -- Road to ROCm on Radeon](https://www.amd.com/en/blogs/2025/the-road-to-rocm-on-radeon-for-windows-and-linux.html)
-- [Magnopus: How We Render Extremely Large Point Clouds](https://www.magnopus.com/blog/how-we-render-extremely-large-point-clouds)
-- [Codrops -- WebGPU Fluid Simulations](https://tympanus.net/codrops/2025/02/26/webgpu-fluid-simulations-high-performance-real-time-rendering/)
-- [Refik Anadol -- NVIDIA AI Art Gallery](https://www.nvidia.com/en-us/research/ai-art-gallery/artists/refik-anadol/)
-- [Dreamsheets -- Prompting for Discovery (ACM)](https://dl.acm.org/doi/10.1145/3613904.3642858)
+- [WebGPU Fluid Simulations -- Codrops](https://tympanus.net/codrops/2025/02/26/webgpu-fluid-simulations-high-performance-real-time-rendering/) -- 100K particles on iGPU via WebGPU compute
+- [Refik Anadol Works](https://refikanadol.com/works/) -- primary aesthetic reference
+- [qt-material docs](https://qt-material.readthedocs.io/) -- theming integration
+- [Emil Dziewanowski -- Curl Noise](https://emildziewanowski.com/curl-noise/) -- practical implementation
+- [wgpu-py buffer mapping discussion](https://github.com/pygfx/wgpu-py/issues/114) -- GPU buffer sharing feasibility
 
-### Tertiary (LOW confidence -- needs validation)
-- Depth Anything V3 ONNX export stability (V3 released Nov 2025, limited ONNX conversion reports)
-- Windows ML as DirectML successor (announced May 2025, compatibility extent unclear)
-- WGSL compute shader performance for fluid simulation on RDNA 4 (theoretical, no benchmarks found)
+### Tertiary (LOW confidence)
+- AMD ROCm Blog on Taichi -- focused on Instinct (datacenter), not consumer RDNA
+- RDNA 4 compute driver maturity -- inferred from hardware newness, no direct testing evidence
 
 ---
-*Research completed: 2026-03-14*
+*Research completed: 2026-03-15*
 *Ready for roadmap: yes*

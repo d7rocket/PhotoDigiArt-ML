@@ -1,249 +1,168 @@
-# Feature Research
+# Feature Landscape
 
-**Domain:** Data-driven generative art pipeline (photo-to-data-sculpture)
-**Researched:** 2026-03-14
-**Confidence:** MEDIUM (established domain with clear patterns, but Apollo 7's specific niche -- desktop photo-to-sculpture pipeline -- has few direct comparators)
+**Domain:** Data-driven generative art -- photo-to-sculpture pipeline with living particle physics
+**Researched:** 2026-03-15
+**Focus:** v2.0 "Make It Alive" upgrade -- organic fluid motion, polished UI, Claude creative direction
 
-## Feature Landscape
+## Table Stakes
 
-### Table Stakes (Users Expect These)
+Features required for a generative art tool that claims to produce "living" data sculptures. Missing any of these means the output still looks like exploding pixels rather than coherent organic forms.
 
-Features that any data-driven generative art tool must have. Missing any of these makes the product feel broken or incomplete.
+| Feature | Why Expected | Complexity | Existing? | Notes |
+|---------|-------------|------------|-----------|-------|
+| **Per-particle home position attraction** | THE critical missing piece. Every professional particle sculpture system (Houdini POP Attract, TouchDesigner attractor TOPs) anchors particles to target positions while allowing perturbation. Without home attraction, forces inevitably disperse particles into chaos. This is the #1 difference between Anadol-style sculptures and random explosions. | Medium | Partial -- attractors exist from collection analysis but NOT per-particle homes | Add `home_positions` storage buffer (copy of initial positions). Add `home_strength` param (0.0-2.0). Force: `(home_pos - pos) * home_strength`. Every particle gently pulled back toward its data-derived location. |
+| **Curl noise flow field (tuned)** | The signature of organic motion. Current integrate.wgsl implements curl via finite differences on fbm3d -- the approach is mathematically correct. Problem is force balance: competing SPH/attraction/repulsion forces likely overwhelm the flow field, or parameter ranges are wrong. | Low (tuning) | Yes -- integrate.wgsl lines 177-197 | The curl implementation looks correct. Fix is parameter tuning + ensuring curl noise amplitude is proportional to other forces. Current `noise_amplitude` default of 1.0 may need to be 0.1-0.3 when other forces are active. |
+| **Velocity-dependent damping** | Uniform damping (current: 0.99) treats slow and fast particles identically. Fast-moving particles should experience more drag, preventing runaways while allowing slow orbital motion. This creates the "viscous fluid" feel. | Low | Partial -- uniform damping exists | Change from `vel *= damping` to `vel *= damping - drag_coefficient * length(vel)`. Or use `vel *= damping / (1.0 + drag * length(vel))` to prevent negative damping. |
+| **Force balance presets** | 18+ parameters with no guidance on good combinations is unusable for most artists. Curated presets that demonstrate what "alive" looks like are table stakes for any parametric creative tool. Current presets are described as "whacky." | Low | Preset system exists but quality is poor | Create 6-8 curated presets: "Gentle Flow" (low noise, moderate home), "Ocean Current" (high curl, low home), "Breathing" (modulated amplitude), "Vortex" (high turbulence, strong curl), "Crystalline" (high home, low noise), "Dissolution" (zero home, high curl). |
+| **Smooth parameter interpolation** | Jumping between parameter values causes jarring visual discontinuities that break the "living" illusion. Every parameter change must lerp over 0.3-1.0 seconds. TouchDesigner does this automatically; Houdini has ramped keyframes. | Low | Crossfade widget exists for preset transitions | Wire crossfade/lerp to ALL parameter changes, not just preset transitions. On slider release, animate from old to new value over ~0.5 seconds. |
+| **Round soft-edged points** | Hard square points (GPU default) look like a debug visualization, not art. Round points with gaussian falloff are the baseline for any point cloud art tool. Additive blending creates glow at density concentrations. | Medium | Unknown -- needs render pipeline check | Fragment shader: `let d = length(point_coord - 0.5); if d > 0.5 { discard; } alpha *= smoothstep(0.5, 0.3, d);`. Enable additive blending for luminous effect. |
+| **Background color control** | Anadol uses pure black for dramatic contrast. Gallery displays use white. Artists need at minimum black/white/custom toggle. The viewport background IS part of the artwork. | Low | Theme system exists, viewport bg unclear | Color picker or at minimum black/white/dark-gray toggle for viewport background. |
+| **Consistent 60fps at 500K+ particles** | Any stutter destroys the "living" illusion. The human eye is extremely sensitive to motion discontinuity. Performance mode (SPH bypass) already exists, which is good. | Medium | Performance mode exists, TDR chunking exists | Profile at 500K particles with all forces active. If sub-60fps, tune SPH neighbor search radius and workgroup dispatch. The spatial hash grid (128^3) may be oversized. |
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| **Image ingestion (single + batch)** | Fundamental input. Every tool from TouchDesigner to Processing handles media import | Low | Must handle common formats (JPEG, PNG, TIFF, RAW). Batch = folder scanning with progress feedback |
-| **Real-time 3D viewport** | Users expect to orbit, zoom, pan through their sculpture. Anadol's work is inherently spatial | High | GPU-accelerated rendering. Must maintain 30+ FPS with 100K+ points. Camera controls must feel native (orbit, dolly, pan) |
-| **Point cloud rendering** | The core visual output. TouchDesigner, openFrameworks, and every 3D data-viz tool renders point clouds | Medium | Point size, color mapping, opacity. Additive blending for density visualization |
-| **Color/palette extraction** | Extracting dominant colors, gradients, and color distributions from source images | Low | k-means clustering or median cut. Well-solved problem |
-| **Edge/geometry detection** | Extracting structural features (edges, contours, shapes) from images | Medium | Canny, Sobel, or learned edge detection. Depth maps from monocular estimation (Depth Anything V2) |
-| **Parameter controls (sliders, knobs)** | Artists expect direct manipulation. Every creative tool from Photoshop to TouchDesigner has parameter panels | Medium | Sliders, color pickers, dropdowns, numeric inputs. Must update viewport in real-time |
-| **Save/load projects** | Users will close the app and return. Losing work is unacceptable | Medium | Serialize all parameters, feature data, and sculpture state. JSON or binary format |
-| **Export still images** | Users need to capture their sculptures as high-res images for portfolios, prints, social media | Low | Screenshot at viewport resolution + high-res render (2x, 4x) with transparent background option |
-| **Basic particle system** | Points that move, flow, react. Static point clouds feel dead compared to Anadol's flowing forms | High | GPU compute for particle physics. Noise-driven motion, attraction/repulsion forces |
-| **Undo/redo** | Any creative tool without undo is hostile. Artists experiment constantly | Medium | Command pattern on parameter changes. At minimum, parameter-level undo (not pixel-level) |
+## Differentiators
 
-### Differentiators (Competitive Advantage)
+Features that elevate Apollo 7 from "competent particle tool" to "artistic instrument that produces gallery-quality living sculptures."
 
-Features that set Apollo 7 apart from using TouchDesigner, Processing, or openFrameworks directly. These are the reasons someone would choose this tool specifically.
+| Feature | Value Proposition | Complexity | Depends On | Notes |
+|---------|-------------------|------------|------------|-------|
+| **Multi-octave time evolution** | Current fbm3d uses static octave frequencies. In reality, large-scale motion should evolve slowly while small-scale detail flickers rapidly. Adding per-octave time multipliers creates "breathing" -- the unmistakable signature of living systems vs mechanical repetition. | Medium | Existing curl noise | Modify fbm3d: `pos = p * frequency + vec3(time * 0.05 * pow(2.0, float(i)))`. Large octaves evolve slowly, small octaves evolve fast. This single change transforms static swirls into organic undulation. |
+| **Vortex confinement force** | Amplifies existing rotational motion, preventing it from dissipating due to numerical damping. Used in every professional fluid sim (Houdini, Fedkiw et al.). Adds persistent swirling without adding net energy. The "wow" factor in fluid-like particle motion. | Medium | Existing force pipeline + neighbor velocity access | Compute vorticity `omega = curl(velocity_field)` at each particle (sample neighbor velocities). Apply force: `f_conf = epsilon * (normalize(gradient(|omega|)) cross omega) * h`. Requires accessing neighbor velocities in the forces pass. |
+| **Breathing / pulse modulation** | Periodic sine-wave modulation of noise_amplitude and home_strength. Creates the "organism" effect: sculpture expands on "inhale" (weaker home, stronger noise), contracts on "exhale" (stronger home, weaker noise). Trivial to implement, massive visual impact. | Low | Home position attraction | Add `breathing_rate` (0.1-2.0 Hz) and `breathing_depth` (0.0-1.0) params. In shader: `let breath = sin(time * rate * 6.28) * depth; effective_home_strength = home_strength * (1.0 - breath * 0.5); effective_noise_amp = noise_amplitude * (1.0 + breath * 0.3);` |
+| **Shape morphing between targets** | Smoothly morph particle cloud between different source configurations: depth-projected portrait, feature-clustered abstract, embedding cloud, or between different photos. Lerp home positions over configurable duration. Signature Anadol "data morphism" effect. | High | Per-particle home positions + multiple target position sets | Store N target position buffers. Animate: `current_home = lerp(target_A, target_B, smooth_t)` where `smooth_t` uses ease-in-out curve. Need UI for selecting morph targets and duration. |
+| **Claude creative director** | Claude analyzes source photos (via thumbnails + CLIP descriptions), understands content/mood, and suggests complete parameter sets with artistic rationale. "This portrait has dramatic chiaroscuro lighting -- suggesting strong vertical flow with high contrast between dense and sparse regions to echo the shadow geometry." | High | Existing Claude API + home position system | Send: photo thumbnail (resized), CLIP embedding summary, current parameter values. Receive: JSON parameter set + natural language explanation. Display rationale alongside "Apply Direction" button. The explanation is as valuable as the parameters -- it teaches the artist. |
+| **Particle trails (temporal accumulation)** | Short motion trails behind each particle showing recent trajectory. Creates the "data stream" aesthetic central to Anadol's work. Two approaches: per-particle history ring buffer (expensive memory) or frame accumulation buffer (cheap, slightly different look). | Medium | Trail length param exists in PostFX panel | Frame accumulation: render current frame, blend with previous frame at 80-95% opacity. Effectively free performance-wise. Per-particle trails: store last 4-8 positions per particle, render as line strips. More control but 4-8x position buffer memory. |
+| **Depth-aware point sizing** | Points closer to camera render larger, creating natural perspective depth cue. Combined with DOF blur (exists in PostFX), produces cinematic spatial depth without expensive raytracing. | Low | DOF exists in PostFX system | Vertex shader: `point_size = base_size / (distance_to_camera * perspective_scale + 1.0)`. Already standard in point cloud renderers. |
+| **Color field evolution** | Particle colors shift slowly over time based on their position within the flow field. Sample noise at particle position, use as hue/saturation offset. Colors "flow through" the sculpture creating iridescent, oil-on-water shimmer. | Medium | Color buffer + noise functions | Sample `perlin3d(pos * color_freq + time * color_speed)` and map to hue rotation. Very striking visually, relatively cheap computationally since noise is already sampled for flow field. |
+| **Tiered parameter UI** | Split parameters into Essential (5-7 sliders visible by default) and Advanced (collapsed). Essential: speed, home_strength, flow_intensity, breathing_rate, point_size. Advanced: all SPH params, noise octaves, vortex, individual force weights. Inspired by UJI's minimal slider approach and TouchDesigner's parameter panel hierarchy. | Medium | Existing simulation panel | Reduces visual overwhelm from 22+ sliders to ~6 primary controls. Advanced section available for power users. Claude creative director navigates the full parameter space, so most users never need advanced controls. |
+| **Claude-generated preset names** | When user saves a preset, optionally ask Claude to generate a poetic name and one-sentence description based on parameter values and source material. Makes preset library feel curated rather than "Preset_23." | Low | Preset system + Claude API | Low-stakes API call. Falls back gracefully to user naming if Claude unavailable. Delightful touch that costs almost nothing to implement. |
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| **Discovery mode (AI-guided composition)** | The killer feature. System analyzes extracted data and proposes sculpture compositions. Artist refines rather than builds from scratch. No existing desktop tool does this well | Very High | Requires mapping feature-space to aesthetic-space. Start simple: randomized but constrained parameter exploration with "more like this / less like this" feedback loop |
-| **Semantic feature extraction** | Understanding WHAT is in photos (objects, scenes, mood), not just pixel-level features. Photos of forests vs. cities should produce fundamentally different sculptures | High | Local models (CLIP, BLIP-2) for object/scene recognition. Optional Claude API for richer narrative annotation. This bridges data and meaning |
-| **Photo-to-sculpture pipeline as single workflow** | TouchDesigner requires node programming. Processing requires coding. openFrameworks requires C++. Apollo 7 is: drop photos in, get sculpture out, refine | Medium | The integration IS the product. Each competitor can do pieces; none offer the end-to-end GUI workflow for non-programmers |
-| **Feature-to-visual mapping editor** | Explicit, visible connections between extracted data (e.g., "warm colors" -> "upward particle velocity") that the artist can rewire | High | Visual mapping interface. Source features on left, visual parameters on right, drag to connect. Inspired by audio routing matrices |
-| **Multi-photo pattern emergence** | When processing thousands of photos, patterns emerge that single-photo analysis misses. Clustering, trends, outliers become sculptural elements | High | Statistical analysis across the collection. t-SNE or UMAP for dimensionality reduction. Cluster visualization |
-| **Claude API creative direction** | Ask Claude to interpret the data and suggest artistic directions. "These 500 sunset photos feel melancholic -- try dispersing warm particles downward with slow decay" | Medium | API integration is straightforward. The value is in prompt engineering and translating Claude's text into parameter adjustments |
-| **Preset library with interpolation** | Save named presets ("Crystalline", "Organic Flow", "Data Storm") and smoothly interpolate between them. Blending presets creates new aesthetics | Medium | Parameter serialization + lerp between saved states. Keyframe timeline for animated transitions |
-| **Live parameter animation** | Parameters that change over time -- sculptures that evolve, breathe, pulse. Not just static renders but living data forms | Medium | Timeline or LFO-based parameter modulation. Sine waves, noise, envelope followers mapped to any parameter |
+## Anti-Features
 
-### Anti-Features (Commonly Requested, Often Problematic)
-
-Features to deliberately NOT build. These seem appealing but would dilute the product, add massive complexity, or conflict with the core vision.
+Features to explicitly NOT build. These are common traps that waste months of development or dilute the product identity.
 
 | Anti-Feature | Why Avoid | What to Do Instead |
 |--------------|-----------|-------------------|
-| **Text-to-image / prompt-based generation** | This is Stable Diffusion / DALL-E territory. Apollo 7 transforms DATA, not prompts. Adding generation confuses the identity and competes with tools that do it better | Keep the pipeline data-driven. Claude suggests parameters, not pixels |
-| **Node-based visual programming** | TouchDesigner already does this brilliantly. Building a node editor is 6+ months of work that recreates what exists. The whole point is to NOT require programming | Use a simpler mapping editor (source -> target). If users want nodes, they should use TouchDesigner |
-| **Plugin/extension system** | Premature abstraction. Building a stable plugin API before the core is solid creates backward-compatibility debt that constrains future changes | Hardcode features in v1. Consider plugins only after the core pipeline is validated and stable (v2+) |
-| **Video input processing** | Video frames multiply the data by 24-60x. Processing pipelines, memory management, and temporal coherence are entire research domains | Photos only for v1. Video is a future milestone after the photo pipeline is proven |
-| **Real-time camera feed** | Requires low-latency capture, processing, and rendering pipeline. Completely different architecture from batch processing | Batch processing only. The Anadol aesthetic comes from large dataset processing, not live feeds |
-| **Cloud rendering** | Adds server infrastructure, authentication, billing, latency concerns. Contradicts local-first philosophy | All computation stays local. The RX 9060 XT with 16GB VRAM is more than capable |
-| **Social sharing / gallery features** | Scope creep into social platform territory. Export an image; let users share however they want | Export high-res images and videos. Users choose their own sharing platform |
-| **Mesh generation / 3D printing export** | Converting point clouds to manifold meshes is a deep rabbit hole (marching cubes, Poisson reconstruction, mesh cleanup). Entirely different output domain | Stay in point cloud / particle territory. If users need meshes, they can export point clouds to Blender/MeshLab |
-| **Multi-user collaboration** | Networking, conflict resolution, presence indicators. Massive complexity for a desktop creative tool | Single-user desktop application. Artists work solo with their data |
+| **Full Navier-Stokes fluid solver** | Requires pressure projection, divergence-free velocity solve, implicit time stepping. Months of work for a marginal visual improvement over tuned curl noise + SPH + vortex confinement. These three together produce 90% of the "fluid" look at 10% of the computational cost. The goal is aesthetic fluid motion, not physically accurate fluid dynamics. | Tune existing SPH + add curl noise balance + add vortex confinement. Professional generative artists (including Anadol's studio) use curl noise, not Navier-Stokes, for real-time work. |
+| **Mesh reconstruction from particles** | Marching cubes / Poisson reconstruction changes the aesthetic from "flowing point cloud" to "3D model." Entirely different visual language. Also adds enormous computational cost and geometric artifacts. Not the Anadol look. | Keep particles as points. Invest in point rendering quality (round, soft, glowing, trails). The point cloud IS the medium. |
+| **Node-based visual programming** | TouchDesigner already does this brilliantly. Building a node editor is 6+ months of UI work that recreates what exists. Apollo 7's identity is "drop photos in, get sculpture out" -- not "wire nodes to build a pipeline." The node_editor.py file exists but should remain a simple mapping tool, not a full programming environment. | Keep slider-based parametric UI. Claude creative director serves as the "intelligent node graph" -- it understands artistic intent and maps to parameters without the user needing to understand signal flow. |
+| **Audio reactivity** | Requires audio capture, FFT analysis, beat detection, onset detection, frequency band isolation, and parameter mapping. An entire separate feature domain that would take 3-4 weeks minimum. | The breathing/pulse modulation system provides similar rhythmic motion without audio complexity. Defer to v3.0 if ever requested. |
+| **Real-time video export** | Screen recording at 60fps while maintaining simulation performance is hard. Video encoding adds significant GPU load. H.264/H.265 encoding on AMD requires AMF SDK integration. | Keep PNG sequence export. Add a "Render Sequence" mode that pauses real-time display and renders N frames at full quality. Users assemble with ffmpeg. Much simpler, better quality. |
+| **Physics-accurate collision** | Particle-mesh or particle-particle hard collision detection is expensive and unnecessary. Sculptures don't interact with solid geometry. The "soft" behavior of overlapping particles IS the aesthetic. | Use soft boundary clamping (exists) and home position attraction for confinement. SPH pressure forces provide soft collision-like behavior. |
+| **Multi-user collaboration** | Networking, state sync, conflict resolution, presence indicators. Massive scope for near-zero value in a single-artist creative tool. | Single-user tool. Share work via preset files and project exports. |
 
 ## Feature Dependencies
 
 ```
-Image Ingestion -----> Color Extraction -----> Point Cloud Generation -----> Real-time Viewport
-                  |                        |
-                  +--> Edge Detection -----+
-                  |                        |
-                  +--> Depth Estimation ---+
-                  |
-                  +--> Semantic Extraction (CLIP/BLIP) ---> Discovery Mode
-                                                       |
-                                      Claude API ------+
+                    Per-Particle Home Positions
+                    /           |            \
+                   v            v             v
+        Force Balance     Breathing/Pulse   Shape Morphing
+         Presets           Animation        Between Targets
+            |                  |
+            v                  v
+     Claude Creative      Smooth Parameter
+      Director             Interpolation
+            |
+            v
+     Claude Preset Names
 
-Point Cloud Generation ---> Particle System ---> Live Parameter Animation
-                       |
-                       +--> Feature-to-Visual Mapping Editor
 
-Parameter Controls ---> Preset System ---> Preset Interpolation
-                   |
-                   +--> Undo/Redo
+     Curl Noise (existing, needs tuning)
+            |
+            v
+     Multi-Octave Time Evolution
+            |
+            v
+     Vortex Confinement (independent but synergistic)
 
-Save/Load Projects (depends on everything being serializable)
 
-Export Images (depends on Real-time Viewport)
+     Point Rendering Quality (round, soft)
+            |
+            +--> Depth-Aware Point Sizing
+            |
+            +--> Particle Trails
+            |
+            +--> Color Field Evolution
 
-Multi-Photo Pattern Emergence (depends on batch Image Ingestion + all extraction features)
+
+     Tiered Parameter UI (depends on knowing which params are "essential"
+                          -- informed by force balance preset work)
 ```
 
-**Critical path:** Image Ingestion -> Feature Extraction -> Point Cloud Generation -> Real-time Viewport. Everything else builds on this spine.
+## MVP Recommendation for v2.0
 
-## MVP Definition
+The minimum set of features to transform "exploding pixels" into "living sculpture."
 
-The MVP must prove the core thesis: photos become data, data becomes explorable 3D sculpture.
+### Phase 1: Make It Coherent (fix the physics)
 
-**Prioritize (MVP):**
+Priority: These MUST ship. Without them, nothing else matters.
 
-1. Single-image ingestion with color + edge extraction (table stakes, proves the pipeline)
-2. Point cloud generation from extracted features (the core transformation)
-3. Real-time 3D viewport with orbit/zoom/pan (the experience)
-4. Basic parameter controls (point size, color mapping, density) (the creative control)
-5. Save/load project state (minimum viable persistence)
-6. Export screenshot (minimum viable output)
+1. **Per-particle home position attraction** -- Add `home_positions` storage buffer copied from initial positions. Add `home_strength` uniform parameter (default 0.3). Compute `force += (home_pos - pos) * home_strength` in forces shader. This single feature prevents particle dispersion and creates coherent forms.
+2. **Velocity-dependent damping** -- Replace `vel *= 0.99` with `vel *= damping / (1.0 + drag * length(vel))`. Prevents fast-moving particles from escaping while allowing slow orbital motion. Natural viscous-fluid feel.
+3. **Force balance presets** -- Create 6-8 curated parameter sets using the new home_strength param. These are the proof that the physics work. Each preset should look distinctly "alive" in different ways.
+4. **Breathing modulation** -- Add `breathing_rate` and `breathing_depth` params. Modulate home_strength and noise_amplitude with sine wave. Instant "alive" feel at near-zero implementation cost.
 
-**Phase 2 (Core Experience):**
+### Phase 2: Make It Beautiful (rendering + motion quality)
 
-7. Batch image ingestion (unlock the "thousands of photos" use case)
-8. Depth estimation via monocular model (richer geometry)
-9. Particle system with noise-driven motion (sculptures that live)
-10. Preset save/load (creative workflow acceleration)
-11. Undo/redo (creative safety net)
+5. **Round soft-edged points with additive blending** -- Transform the rendering from debug-quality to art-quality.
+6. **Smooth parameter interpolation** -- All parameter changes lerp over time. No more jarring jumps.
+7. **Multi-octave time evolution** -- Per-octave time scaling in noise. Organic evolution instead of mechanical repetition.
+8. **Vortex confinement** -- Persistent swirling that resists numerical damping.
+9. **Tiered parameter UI** -- Essential (6 sliders) + Advanced (collapsed). Reduce visual overwhelm.
 
-**Phase 3 (Differentiators):**
+### Phase 3: Make It Intelligent (Claude-driven)
 
-12. Semantic feature extraction (CLIP/BLIP local models)
-13. Feature-to-visual mapping editor (the rewiring interface)
-14. Discovery mode (AI-guided composition proposals)
-15. Claude API integration (semantic annotation + creative direction)
-16. Multi-photo pattern emergence (collection-level analysis)
-17. Preset interpolation + live parameter animation (temporal dimension)
+10. **Claude creative director** -- Photo analysis to parameter suggestion with artistic rationale.
+11. **Claude preset naming** -- Poetic names for saved presets.
+12. **Depth-aware point sizing** -- Cinematic depth from camera perspective.
 
-**Defer indefinitely:** Node editor, video input, camera feed, cloud rendering, plugin system, mesh export.
+### Defer to v2.5+
 
-## Feature Prioritization Matrix
+- Shape morphing between targets (needs stable home positions first)
+- Color field evolution (nice-to-have, not essential for "alive")
+- Particle trails (rendering complexity vs. impact unclear -- prototype first)
 
-| Feature | User Value | Technical Risk | Dependency Weight | Priority |
-|---------|-----------|---------------|-------------------|----------|
-| Image ingestion | Critical | Low | Blocks everything | P0 |
-| Color extraction | High | Low | Feeds point cloud | P0 |
-| Edge/geometry detection | High | Medium | Feeds point cloud | P0 |
-| Point cloud generation | Critical | Medium | Core transform | P0 |
-| Real-time 3D viewport | Critical | High | Core experience | P0 |
-| Parameter controls | Critical | Medium | Core interaction | P0 |
-| Save/load projects | High | Medium | None (builds on serialization) | P0 |
-| Export images | High | Low | Depends on viewport | P1 |
-| Batch ingestion | High | Medium | Extends ingestion | P1 |
-| Depth estimation | High | High (AMD compat) | Enriches point cloud | P1 |
-| Particle system | High | High | Depends on point cloud | P1 |
-| Undo/redo | High | Medium | Depends on param controls | P1 |
-| Preset system | Medium | Low | Depends on param controls | P1 |
-| Semantic extraction | High | High (model loading) | Enables discovery mode | P2 |
-| Feature-to-visual mapping | High | High | Depends on extraction + rendering | P2 |
-| Discovery mode | Very High | Very High | Depends on semantic + mapping | P2 |
-| Claude API integration | Medium | Medium | Depends on semantic extraction | P2 |
-| Multi-photo patterns | High | High | Depends on batch + all extraction | P2 |
-| Preset interpolation | Medium | Low | Depends on preset system | P2 |
-| Parameter animation | Medium | Medium | Depends on param controls | P2 |
+## The "Alive" Formula
 
-## Competitor Feature Analysis
+Based on research into Refik Anadol's studio work, TouchDesigner particle systems, Houdini POP networks, and Bridson et al.'s curl-noise paper, the recipe for organic particle motion is **four competing forces in dynamic equilibrium**:
 
-### TouchDesigner (Derivative)
+1. **Cohesion force** (home position attraction): Pulls particles toward their intended form. Strength: moderate. Purpose: shape preservation.
+2. **Flow force** (curl noise): Pushes particles along smooth, divergence-free paths. Strength: proportional to cohesion. Purpose: organic motion.
+3. **Confinement force** (vortex confinement): Amplifies existing rotation, preventing dissipation from numerical damping. Strength: subtle. Purpose: persistent swirls.
+4. **Drag force** (velocity-dependent damping): Prevents explosion by penalizing high velocity. Strength: proportional to speed. Purpose: stability.
 
-**What it does well:**
-- Industry-standard for real-time generative visuals and installations
-- Node-based programming allows unlimited flexibility
-- Excellent point cloud support (SOP -> CHOP -> TOP pipeline)
-- GPU-accelerated rendering with GLSL shader support
-- Massive community with shared components (tox files)
-- Real-time performance with millions of particles
+When these four balance, particles orbit their home positions in flowing, undulating paths. They look "alive" because they exist in a stable dynamic system -- not decaying, not exploding, but continuously moving in equilibrium.
 
-**What it lacks for Apollo 7's use case:**
-- No photo feature extraction pipeline built-in (you build it yourself with nodes)
-- Requires programming/node-wiring knowledge -- not a "drop photos, get sculpture" tool
-- No semantic understanding of image content
-- No discovery/suggestion mode
-- CUDA-focused GPU compute (poor AMD support for compute shaders)
-- Commercial license ($600+/year for commercial use)
+The current codebase has force 2 (curl noise, implemented correctly) and force 4 (uniform damping, needs velocity-dependence). Forces 1 (per-particle homes) and 3 (vortex confinement) are missing. Adding them and tuning the balance is the core v2.0 work.
 
-**Apollo 7's advantage:** End-to-end photo-to-sculpture workflow without programming. Semantic understanding. Discovery mode.
+### New Shader Parameters
 
-### Processing / p5.js
+```wgsl
+// Add to SimParams uniform (4 new floats = 1 new vec4):
+home_strength: f32,      // 0.0-2.0, soft attraction to initial position
+breathing_rate: f32,     // 0.1-2.0 Hz, pulse frequency
+breathing_depth: f32,    // 0.0-1.0, modulation amplitude
+vortex_strength: f32,    // 0.0-1.0, vortex confinement intensity
 
-**What it does well:**
-- Excellent for learning and prototyping generative art
-- Huge community, extensive tutorials and examples
-- Simple API for 2D and basic 3D
-- Cross-platform, free and open source
+// New storage buffer:
+@group(0) @binding(N) var<storage, read> home_positions: array<vec4<f32>>;
+```
 
-**What it lacks for Apollo 7's use case:**
-- Performance ceiling for large point clouds (Java/JS runtime)
-- No GPU compute for particle physics
-- Requires writing code for every variation
-- No built-in image analysis pipeline
-- 3D support is basic compared to native GPU rendering
-
-**Apollo 7's advantage:** GPU-accelerated rendering of massive point clouds. GUI-based workflow. Feature extraction pipeline.
-
-### openFrameworks
-
-**What it does well:**
-- C++ performance for demanding real-time graphics
-- Excellent addon ecosystem (ofxCV for computer vision, ofxGui for controls)
-- Direct OpenGL access for custom rendering
-- Cross-platform, free and open source
-- Strong point cloud and mesh support (ofMesh)
-
-**What it lacks for Apollo 7's use case:**
-- Requires C++ programming for everything
-- No pre-built photo-to-sculpture pipeline
-- GUI construction is manual and basic (ofxGui is minimal)
-- No semantic understanding or AI integration
-- No discovery/suggestion mode
-
-**Apollo 7's advantage:** No coding required. Integrated extraction-to-rendering pipeline. AI-assisted creative direction.
-
-### Houdini (SideFX)
-
-**What it does well:**
-- Most powerful procedural 3D system in existence
-- Excellent particle and fluid simulation
-- VEX scripting for custom behavior
-- Industry-standard for VFX
-
-**What it lacks for Apollo 7's use case:**
-- Extremely steep learning curve (months to years)
-- Expensive ($2,000+/year for commercial, free Apprentice is watermarked)
-- Overkill for the specific photo-to-sculpture workflow
-- No built-in photo feature extraction
-- Offline rendering focus (Karma/Mantra), not real-time exploration
-
-**Apollo 7's advantage:** Purpose-built for one thing: transforming photos into data sculptures. Accessible to non-programmers.
-
-### Anadol-Style Custom Pipelines
-
-**What studios like RAS do:**
-- Custom code (Python + C++ + GLSL) stitching together ML models, data processing, and rendering
-- NVIDIA A100 clusters for training and inference
-- Teams of 15+ (AI engineers, data scientists, designers)
-- Proprietary diffusion models trained on curated datasets
-- 42+ 50K projectors for installation output
-
-**What Apollo 7 democratizes:**
-- Single desktop machine instead of GPU cluster
-- One person instead of a team
-- GUI instead of custom code
-- Open-source ML models instead of proprietary training
-- Screen/monitor output instead of massive projections
-- The aesthetic language of data sculpture, accessible to individual artists
+This adds one vec4 to the uniform (112 -> 128 bytes, still vec4-aligned) and one new storage buffer (same size as positions buffer, set once at init).
 
 ## Sources
 
-- [TouchDesigner Point Clouds](https://interactiveimmersive.io/blog/touchdesigner-3d/3d-point-clouds-in-touchdesigner/) -- TouchDesigner point cloud workflow
-- [TouchDesigner Generative Art](https://interactiveimmersive.io/blog/touchdesigner-operators-tricks/ways-to-create-generative-art-with-touchdesigner/) -- TouchDesigner generative art approaches
-- [Comparing Generative Art Tools](https://visualalchemyx.wordpress.com/2024/08/31/comparing-top-generative-art-tools-processing-openframeworks-p5-js-and-more/) -- Processing vs openFrameworks comparison
-- [openFrameworks 3D](https://openframeworks.cc/documentation/3d/) -- openFrameworks 3D capabilities
-- [Depth Anything V2](https://github.com/DepthAnything/Depth-Anything-V2) -- Monocular depth estimation model
-- [DepthFM](https://github.com/CompVis/depth-fm) -- Fast monocular depth estimation
-- [Refik Anadol - NVIDIA AI Art](https://www.nvidia.com/en-us/research/ai-art-gallery/artists/refik-anadol/) -- Anadol's technical approach
-- [Refik Anadol - Data Sculptures](https://wepresent.wetransfer.com/stories/refik-anadol-on-quantum-memories-and-data-sculptures) -- Anadol's workflow description
-- [WIPO - Anadol Process](https://www.wipo.int/en/web/wipo-magazine/articles/painting-with-data-how-media-artist-refik-anadol-creates-art-using-generative-ai-67301) -- Anadol studio composition and process
-- [AI Geometry Feature Extraction Survey](https://link.springer.com/article/10.1007/s10462-024-11051-3) -- Feature extraction in artistic images
-- [Point Cloud Rendering Techniques](https://medium.com/realities-io/point-cloud-rendering-7bd83c6220c8) -- GPU point cloud rendering approaches
-- [Dreamsheets - Prompting for Discovery](https://dl.acm.org/doi/10.1145/3613904.3642858) -- Discovery mode UX research
-- [Variable.io - Generative and Data Art](https://variable.io/generative-and-data-art/) -- Data-driven art practice overview
+- [Bridson et al. - Curl-Noise for Procedural Fluid Flow (2007)](https://www.researchgate.net/publication/216813629_Curl-noise_for_procedural_fluid_flow) -- HIGH confidence, foundational paper for divergence-free procedural flow
+- [SideFX POP Attract Documentation](https://www.sidefx.com/docs/houdini/nodes/dop/popattract.html) -- HIGH confidence, reference implementation of shape target attraction
+- [SideFX Curl Noise Flow Tutorial](https://www.sidefx.com/tutorials/curl-noise-flow/) -- MEDIUM confidence, professional technique walkthrough
+- [Emil Dziewanowski - Curl Noise](https://emildziewanowski.com/curl-noise/) -- MEDIUM confidence, practical implementation guide
+- [Refik Anadol - Works](https://refikanadol.com/works/) -- HIGH confidence, primary aesthetic reference
+- [NVIDIA AI Art Gallery - Refik Anadol](https://www.nvidia.com/en-us/research/ai-art-gallery/artists/refik-anadol/) -- HIGH confidence, technical description of Anadol's GPU workflow
+- [WeTransfer - Anadol Data Sculptures](https://wepresent.wetransfer.com/stories/refik-anadol-on-quantum-memories-and-data-sculptures) -- MEDIUM confidence, process description
+- [Wicked Engine - GPU Fluid Simulation](https://wickedengine.net/2018/05/scalabe-gpu-fluid-simulation/) -- MEDIUM confidence, GPU SPH implementation reference
+- [Point Cloud Morphing in UE4](https://www.gamedeveloper.com/game-platforms/point-clouds-morphing-fx-with-unreal-engine-4-) -- MEDIUM confidence, morph target implementation
+- [AllTouchDesigner - Particle Attractors](https://alltd.org/touchdesigner-particles-system-on-tops-part-1-sources-attractor-and-forces/) -- MEDIUM confidence, attractor system patterns
+- [UJI Generative Art Tool](https://excessivelyadequate.com/posts/uji.html) -- MEDIUM confidence, minimal generative art UI reference
+- [Charlotte Dann - Magical Vector Fields](https://charlottedann.com/article/magical-vector-fields) -- MEDIUM confidence, flow field techniques
+- [Three.js Galaxy Simulation with WebGPU Compute](https://threejsroadmap.com/blog/galaxy-simulation-webgpu-compute-shaders) -- MEDIUM confidence, WebGPU compute patterns
+- [GPU Particle Attractors - Experiments with Google](https://experiments.withgoogle.com/gpu-particle-attractors) -- MEDIUM confidence, attractor-based particle aesthetics

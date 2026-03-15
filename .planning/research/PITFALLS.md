@@ -1,377 +1,333 @@
 # Pitfalls Research
 
-**Domain:** Data-driven generative art pipeline (photo-to-3D-sculpture)
-**Researched:** 2026-03-14
-**Confidence:** HIGH (GPU ecosystem verified against current sources; rendering patterns verified against published research)
-
----
+**Domain:** Generative art pipeline — fluid particle simulation, UI rework, LLM integration, AMD GPU compute
+**Researched:** 2026-03-15
+**Confidence:** HIGH (based on direct codebase analysis + domain knowledge)
 
 ## Critical Pitfalls
 
-### CP-1: ROCm on Windows Is Not ROCm on Linux
+### Pitfall 1: The "Explosion Problem" — SPH Kernel Coefficients Blow Up at Small Smoothing Radii
 
-**What goes wrong:** Developers assume ROCm on Windows has feature parity with Linux. It does not. The Windows offering is a subset called HIP SDK, which supports PyTorch and ONNX Runtime but lacks many ROCm libraries available on Linux (MIOpen, rocBLAS full suite, etc.). Many tutorials and Stack Overflow answers assume Linux ROCm and will silently fail on Windows.
+**What goes wrong:**
+Particles fly apart instantly or within a few frames, producing a rapidly expanding cloud instead of coherent fluid-like motion. This is the primary v1.0 failure mode.
 
-**Why it happens:** AMD markets "ROCm" as a unified brand, but Windows support is a constrained subset. ROCm 6.4.4 added PyTorch on Windows for RDNA 4, and ROCm 7.x continues expanding, but the Windows surface area is smaller than Linux.
+**Why it happens:**
+Direct analysis of `sph.wgsl` reveals the root cause. The SPH kernels use standard formulas with denominators containing `pow(h, 9)` (poly6) and `pow(h, 6)` (spiky). With `smoothing_radius = 0.1`:
+
+- `h^9 = 1e-9`, making poly6 coefficient = `315 / (64 * pi * 1e-9)` = ~1.56e9
+- `h^6 = 1e-6`, making spiky coefficient = `45 / (pi * 1e-6)` = ~1.43e7
+
+These astronomical kernel values produce enormous density estimates, which feed into pressure calculation `gas_constant * (density - rest_density)`. With `gas_constant = 2.0` and `rest_density = 1000.0`, if computed density reaches 1e6+ (easily happens with these coefficients), pressure forces are in the millions. No amount of damping at 0.99 per frame can counteract forces of that magnitude.
+
+Additionally, the attraction force in `forces.wgsl` uses `attraction_strength / (dist^2 + 0.01)` with no upper clamp. When particles are close, this produces unbounded forces that compound with the SPH explosion.
 
 **How to avoid:**
-- For ML inference (feature extraction, depth estimation): Use **ONNX Runtime with DirectML** or the newer **Windows ML** execution provider. DirectML works on all DirectX 12 GPUs including AMD RDNA 4, no ROCm required. DirectML is in maintenance mode but still ships with Windows; Windows ML is its successor.
-- For compute shaders (particle simulation, point cloud transforms): Use **Vulkan compute** or **DirectX 12 compute**. These are first-class on AMD RDNA 4.
-- For PyTorch training/fine-tuning (if ever needed): ROCm 6.4.4+ on Windows supports RDNA 4, but test early.
-- Never depend on a single AMD compute path. Always have a CPU fallback.
+1. **Normalize kernel coefficients to your spatial scale.** If your world uses units where particles are 0.01-1.0 apart, set `smoothing_radius` to match (0.2-0.5 range). Or pre-scale the kernel output.
+2. **Clamp total force magnitude.** Add `force = normalize(force) * min(length(force), MAX_FORCE)` before integration. A reasonable MAX_FORCE is 10-50x the gravity magnitude.
+3. **Use adaptive timestep or substeps.** If `max_acceleration * dt > threshold`, subdivide the step.
+4. **Separate SPH parameter tuning from rendering scale.** SPH works well when `h` is ~2-4x the mean inter-particle spacing. Compute mean spacing first, then derive `h`.
 
 **Warning signs:**
-- Import errors mentioning `hiprtc` or `amdhip64` on Windows
-- PyTorch `torch.cuda.is_available()` returning False (HIP masquerades as CUDA but needs correct builds)
-- Tutorials that say "install ROCm" without specifying Windows vs Linux
+- Particles visibly accelerating each frame without bound
+- Velocity magnitudes growing exponentially (add a debug readback: if `max(|vel|) > 100`, something is wrong)
+- Simulation looks fine for 0.5s then suddenly explodes
+- Reducing particle count makes the problem worse (fewer particles = higher density per neighbor = larger forces)
 
-**Phase to address:** Phase 1 (foundation). GPU compute strategy must be locked before any feature extraction or rendering work begins.
-
-**Confidence:** HIGH -- verified against ROCm 7.2.0 release notes, AMD HIP SDK docs, and DirectML GitHub status.
+**Phase to address:**
+Phase 1 (Physics Fix) — this is THE blocker. Nothing else matters if particles explode.
 
 ---
 
-### CP-2: The "It Works on 100 Photos" Scaling Wall
+### Pitfall 2: Stale Spatial Hash Causes Ghost Forces and Missed Collisions
 
-**What goes wrong:** The pipeline works beautifully with 10-100 photos but crashes or becomes unusable at 1,000+. Feature extraction creates per-image data (depth maps, edge maps, color histograms, embeddings) that accumulates linearly. A single photo might produce 50-200 MB of intermediate data. At 5,000 photos, that's 250 GB-1 TB of intermediate state that must be managed.
+**What goes wrong:**
+The spatial hash grid used for neighbor lookups becomes incorrect as particles move, causing forces to be computed against wrong neighbors or missing nearby particles entirely. This produces erratic, chaotic motion even when force magnitudes are correct.
 
-**Why it happens:** Developers build for the demo case (few images, immediate results) and defer batch processing architecture. Photo-to-feature pipelines are embarrassingly parallel but memory-hungry. Without streaming/chunking, the system tries to hold everything in RAM.
+**Why it happens:**
+In the current codebase, `build_spatial_hash()` in `buffers.py` runs only at `initialize()` and `restart()` — not per-frame. After the first simulation step, particles have moved but the spatial hash still reflects their initial positions. The forces shader queries neighbors based on stale cell assignments:
+
+```
+# buffers.py line 146-148:
+# "Only needs to run at simulation start/restart, not per-frame."
+# This comment documents the bug — it DOES need to run per-frame.
+```
+
+This means:
+- Particle A moves into Particle B's space, but the hash says they are in different cells — no repulsion fires
+- Two particles that have moved apart still show as neighbors — attraction forces pull on phantoms
+- The further simulation progresses from init, the more wrong the hash becomes
 
 **How to avoid:**
-- Design a **disk-backed feature store** from day one. Extract features per-image and write to a structured format (SQLite + binary blobs, or a purpose-built format like Apache Arrow/Parquet for metadata + raw binary for tensors).
-- Process images in configurable batch sizes (e.g., 16-64 at a time), never all at once.
-- Distinguish between **per-image features** (stored individually) and **aggregate features** (computed incrementally across the dataset). Only aggregate features should be in memory.
-- Implement a progress/resume system: if extraction crashes at image 3,847 of 5,000, it should resume from 3,848.
+1. **Rebuild spatial hash on GPU every frame.** Move the hash construction into a compute shader pass (prefix sum on GPU). This is standard for GPU particle sims.
+2. **Use a GPU-friendly hash like counting sort.** Steps: (a) compute cell hash per particle, (b) count particles per cell (atomic add), (c) prefix sum for offsets, (d) scatter particles to sorted array. All can be done in 3-4 compute dispatches.
+3. **Alternative: skip spatial hash and use a simpler radius-based check** for < 100K particles, or use a BVH for larger counts.
 
 **Warning signs:**
-- RAM usage climbs linearly during batch processing with no plateau
-- No concept of "already processed" images -- re-running means re-extracting everything
-- Feature extraction function returns an in-memory list/array rather than writing to storage
+- Forces seem "sticky" — particles that should repel keep clumping
+- Motion becomes increasingly chaotic over time (diverges from first few seconds)
+- Restarting sim (which rebuilds hash) temporarily fixes the behavior
 
-**Phase to address:** Phase 1 (data pipeline core). The storage architecture must exist before scaling tests.
-
-**Confidence:** HIGH -- standard data engineering pattern; verified against pipeline architecture best practices.
+**Phase to address:**
+Phase 1 (Physics Fix) — must be solved alongside the kernel coefficient issue.
 
 ---
 
-### CP-3: VRAM Exhaustion During Real-Time Point Cloud Rendering
+### Pitfall 3: Force Accumulation Without Clamping Creates Feedback Loops
 
-**What goes wrong:** The renderer attempts to load all points into GPU VRAM simultaneously. With 16 GB VRAM (RX 9060 XT), a naive approach hits limits surprisingly fast. Each point with position (3x float32) + color (4x float32) + normal (3x float32) = 40 bytes. At 16 GB, that's ~400 million points max -- but VRAM is also needed for textures, framebuffers, shader state, and the OS compositor. Realistic budget is 100-200M points before problems.
+**What goes wrong:**
+Multiple force systems (flow field, external forces, SPH pressure, SPH viscosity, gravity, wind, attraction, repulsion) all accumulate into a single force vector with no maximum cap. When several forces align, particles receive catastrophically large accelerations.
 
-**Why it happens:** Point clouds from thousands of photos can easily exceed hundreds of millions of points. Developers test with small datasets and never hit the wall until late in development.
+**Why it happens:**
+In `integrate.wgsl` line 258: `let total_force = force + ext_force + sph_f;` — this is a raw sum with no magnitude limit. The forces pass and SPH pass each write unbounded values, and the integration pass sums them all. With the SPH kernel issue (Pitfall 1), this sum can easily reach 1e6+.
+
+Furthermore, `forces.wgsl` loops over all neighbors in 27 cells accumulating attraction/repulsion. In a dense region with 100+ neighbors, even small per-neighbor forces sum to large totals. There is no per-neighbor or per-cell force budget.
 
 **How to avoid:**
-- Implement a **point budget** system: set a maximum number of rendered points (e.g., 5-50M) based on target framerate, and use Level-of-Detail (LOD) to select which points to render.
-- Use **compute-based rendering** instead of the hardware point primitive pipeline. Research by Schutz et al. shows compute shaders outperform `GL_POINTS`/`VK_PRIMITIVE_TOPOLOGY_POINT_LIST` by up to 10x.
-- Stream points from system RAM to VRAM per-frame based on camera frustum and distance (out-of-core rendering).
-- Use quantized positions (16-bit or even 8-bit relative to a bounding box) to halve memory per point.
+1. **Clamp force magnitude before integration.** After summing all forces: `total_force = total_force * min(1.0, MAX_FORCE / length(total_force))`
+2. **Clamp velocity after integration.** `vel = vel * min(1.0, MAX_VELOCITY / length(vel))`
+3. **Budget force contributions.** Limit each force system's contribution: flow field max N, SPH max M, attraction max P.
+4. **Use velocity Verlet instead of symplectic Euler** for better energy conservation.
 
 **Warning signs:**
-- Framerate drops below 30 FPS when adding more data
-- GPU memory usage reported near 100% in task manager
-- Application crash with no error (GPU driver timeout / TDR on Windows)
+- Adding a new force type makes previously stable sim explode
+- Particles hit boundary constantly (forces launching them to the edge)
+- Sim works with 1 force type, breaks when multiple are active
 
-**Phase to address:** Phase 2 (rendering engine). Must be designed in from the start of the renderer, not bolted on.
-
-**Confidence:** HIGH -- verified against Magnopus point cloud rendering blog, Schutz et al. compute shader paper, and vsgPoints documentation.
+**Phase to address:**
+Phase 1 (Physics Fix) — implement force clamping as part of the integration rework.
 
 ---
 
-### CP-4: Feature Extraction Model Ecosystem Assumes CUDA
+### Pitfall 4: AMD RDNA 4 / WebGPU Compute Gotchas
 
-**What goes wrong:** The best pre-trained models for depth estimation (MiDaS/ZoeDepth), edge detection (HED/BDCN), semantic segmentation (SAM), and image embeddings (CLIP, DINOv2) are trained and distributed as PyTorch models. Their default inference paths assume CUDA. Running them on AMD requires explicit conversion to ONNX and using a compatible execution provider.
+**What goes wrong:**
+Compute shaders that work on NVIDIA or older AMD cards fail silently, produce wrong results, or trigger TDR (Timeout Detection and Recovery) on RDNA 4. The app hangs for 2-3 seconds then the GPU resets, killing all state.
 
-**Why it happens:** NVIDIA dominates ML research hardware. Model authors test on CUDA and publish CUDA-optimized code. AMD support is an afterthought.
+**Why it happens:**
+Several AMD-specific issues:
+1. **TDR timeout.** Windows kills GPU commands taking > 2 seconds. The current chunked dispatch (`_CHUNK_SIZE = 256K`) may not be granular enough for complex SPH with 27-cell neighbor search on 1M+ particles.
+2. **wgpu-native on AMD.** The wgpu library has historically had more testing on NVIDIA/Vulkan. AMD Vulkan driver behavior can differ in edge cases (buffer alignment, workgroup limits, shared memory).
+3. **No CUDA fallback.** CUDA-dependent libraries (cuSPH, NVIDIA Flex, etc.) are not available. Must use WebGPU/Vulkan compute or CPU fallback.
+4. **RDNA 4 is new hardware.** Driver maturity for compute workloads on RX 9060 XT may lag behind gaming drivers. Compute-specific bugs are more likely in early driver revisions.
 
 **How to avoid:**
-- **ONNX is your universal adapter.** Convert every model to ONNX format before integrating it. ONNX Runtime with DirectML/Windows ML will handle AMD GPU acceleration.
-- Pre-convert models during development, not at runtime. Ship ONNX files, not PyTorch checkpoints.
-- Test every model on AMD hardware early. Some ONNX operators may not be supported by DirectML -- discover this in Phase 1, not Phase 3.
-- Keep CPU inference as a tested fallback. Some models run acceptably on CPU for single-image use.
-- Use OpenCV DNN module as an alternative inference engine -- it supports ONNX models and has OpenCL acceleration which works on AMD.
+1. **Profile dispatch timing.** Measure wall-clock time per compute submission. If approaching 500ms, reduce chunk size.
+2. **Test on target hardware early and often.** Do not develop on NVIDIA and assume AMD will work.
+3. **Implement GPU error recovery.** Catch device-lost events and reinitialize gracefully instead of crashing.
+4. **Use wgpu limits queries.** Check `device.limits` for max workgroup sizes, max storage buffer size, etc. Do not hardcode NVIDIA-favorable values.
+5. **Keep compute shaders simple.** Avoid complex control flow, deeply nested loops, and excessive register pressure. RDNA 4 wavefront size is 32 (vs 64 on older AMD). Verify workgroup size assumptions.
 
 **Warning signs:**
-- Code with `model.cuda()` or `device='cuda'` anywhere
-- PyTorch models loaded directly without ONNX conversion
-- Inference times 10x slower than expected (falling back to CPU silently)
+- Application freezes for 2+ seconds then recovers (TDR)
+- Compute results are NaN or zero on AMD but correct on other hardware
+- GPU utilization is very low despite heavy workload (driver bottleneck)
+- `wgpu` logs show device lost or validation errors
 
-**Phase to address:** Phase 1 (feature extraction). Every model must be validated on AMD before the extraction pipeline is considered complete.
-
-**Confidence:** HIGH -- verified against ONNX Runtime DirectML docs, AMD GPUOpen ONNX guide, and OpenCV DNN documentation.
+**Phase to address:**
+Phase 1 (Physics Fix) — validate on AMD hardware immediately after rebuilding the physics pipeline. Do NOT wait until later phases.
 
 ---
 
-### CP-5: GUI Framework vs Rendering Engine War
+### Pitfall 5: UI Rework Scope Creep — Rewriting Everything Instead of Restructuring
 
-**What goes wrong:** The GUI framework (for sliders, controls, file browsers) and the 3D rendering engine (for the viewport) compete for the GPU, the event loop, or both. Common failure modes:
-1. GUI runs on one graphics API (OpenGL via Qt), renderer on another (Vulkan). Two GPU contexts thrash.
-2. GUI event loop blocks rendering, causing stuttery viewport.
-3. Renderer event loop blocks GUI, causing unresponsive controls.
+**What goes wrong:**
+What starts as "clean up the layout and make it polished" becomes a full rewrite of every panel, widget, and signal connection. The UI rework takes 3x longer than estimated and introduces new bugs in features that already worked.
 
-**Why it happens:** GUI frameworks and real-time renderers are both "main loop owners." They each want to control the application lifecycle. Combining them requires explicit architecture decisions that are painful to retrofit.
+**Why it happens:**
+The current `main_window.py` is 1700+ lines with deeply interleaved concerns: layout, wiring, business logic, worker management. Touching one thing breaks another. The temptation is to "do it right this time" and rewrite from scratch.
+
+Looking at the current codebase: 21 files across `gui/`, `gui/panels/`, and `gui/widgets/`. Many have complex signal chains. A "clean slate" rewrite means re-implementing and re-testing all of these interactions.
+
+Additionally, the user wants a white viewport background and polished controls — aesthetic changes that seem small but require touching theme.py, viewport.py, every panel's stylesheet, and potentially the rendering pipeline's clear color.
 
 **How to avoid:**
-- Choose a GUI framework that is renderer-aware. Best options for this project:
-  - **egui** (Rust, immediate-mode, renders via wgpu/Vulkan) -- GUI and 3D share the same GPU context
-  - **Dear ImGui** (C++, immediate-mode) with a Vulkan backend -- same principle
-  - If Python: **Dear PyGui** uses GPU-accelerated rendering internally
-- Run the 3D viewport and GUI in the **same render pass / same graphics context**. Do not embed a separate renderer inside a GUI widget.
-- If the GUI and renderer must be separate processes, use shared memory (not sockets) for frame data.
+1. **Restructure, don't rewrite.** Extract logic from `main_window.py` into a controller layer. Move layout to a separate module. Keep working widget code.
+2. **Set a fixed scope.** Define exactly which panels change layout, which get visual polish, and which stay as-is. Write it down before starting.
+3. **Theme changes first, layout second.** Changing colors/fonts/spacing is safe and gives visible progress. Layout changes are where breakage happens.
+4. **Preserve all existing signal connections.** Map them before refactoring. Every `connect()` call must survive the rework.
+5. **Test each panel independently** after the rework, not just "it launches."
 
 **Warning signs:**
-- Two different `wgpu::Device` / `VkDevice` instances in the same application
-- The 3D viewport is a "widget" that has its own OpenGL context
-- GUI freezes when the renderer is computing, or viewport freezes when sliders are being dragged
+- "While I'm in here, I should also fix..." — scope is expanding
+- Features that worked before the rework are now broken
+- UI rework taking longer than the physics fix
+- Creating new widget classes for things that already exist
 
-**Phase to address:** Phase 1 (architecture decision). This is a foundational choice that affects everything built on top.
+**Phase to address:**
+Phase 2 or 3 (UI Rework) — define scope boundaries before starting. Physics must be fixed first so you know the UI controls actually do something.
 
-**Confidence:** HIGH -- verified against wgpu, egui, and Dear PyGui documentation and architecture patterns.
+---
+
+### Pitfall 6: LLM Latency in the Real-Time Render Loop
+
+**What goes wrong:**
+Claude API calls take 1-5 seconds. If parameter updates from Claude are awaited synchronously in the render loop, the viewport freezes. If they are fire-and-forget, parameters change abruptly between frames, causing visual popping.
+
+**Why it happens:**
+The current `EnrichmentService` makes synchronous API calls. The `EnrichmentWorker` runs in a background thread with Qt signals, which is correct — but the integration into the simulation parameter pipeline has a latency mismatch:
+
+- Render loop runs at 60fps (16ms per frame)
+- Claude API response: 1000-5000ms
+- Network jitter: variable additional delay
+- User sees 60-300 frames between when they request "Claude, drive this" and when parameters change
+
+If parameters jump instantly when the response arrives, you get a visual discontinuity. If you try to interpolate, you need a parameter animation system that blends current values to target values over time.
+
+**How to avoid:**
+1. **Never block the render loop on API calls.** Always use background threads or async. The current `EnrichmentWorker` pattern is correct — keep it.
+2. **Implement parameter lerping.** When Claude suggests new parameters, don't apply them instantly. Animate from current to target over 0.5-2 seconds using smooth interpolation.
+3. **Queue parameter changes.** If multiple Claude responses arrive while one is still animating, queue them and apply sequentially.
+4. **Show feedback during wait.** A subtle UI indicator that Claude is "thinking" prevents the user from wondering if the click did nothing.
+5. **Cache Claude responses.** For similar photo sets, cache parameter suggestions to avoid redundant API calls.
+6. **Design for graceful degradation.** If Claude is slow or unavailable, manual controls must work perfectly. Claude is additive, not required.
+
+**Warning signs:**
+- Viewport stutters when Claude panel is active
+- Parameters "snap" between values instead of transitioning
+- No visible feedback between clicking "Claude, drive" and seeing results
+- App feels broken when offline (Claude features fail ungracefully)
+
+**Phase to address:**
+Phase 3 (Claude Integration) — build the parameter animation system during physics fix (Phase 1), then wire Claude into it.
+
+---
+
+### Pitfall 7: Depth Map Quality — Using Raw Model Output Without Post-Processing
+
+**What goes wrong:**
+Depth maps from Depth Anything V2 look washed out, low-contrast, and unsaturated. The resulting point clouds are flat-looking or have minimal depth variation. The user described this as "unsaturated/low quality."
+
+**Why it happens:**
+Neural depth estimation models output relative depth (not metric depth). The raw output is often:
+- Normalized to [0, 1] but using only a narrow range (e.g., 0.3-0.7)
+- Linear when perception is logarithmic — nearby objects get too much depth range, distant objects compress
+- Missing fine detail at edges (the model trades boundary precision for smoothness)
+
+The current code uploads depth maps as `r32float` textures without histogram equalization, contrast stretching, or any post-processing.
+
+**How to avoid:**
+1. **Apply histogram equalization** to spread depth values across the full [0, 1] range.
+2. **Use CLAHE** (Contrast Limited Adaptive Histogram Equalization) for local contrast enhancement without over-amplifying noise.
+3. **Apply edge-aware sharpening.** Use the edge map to preserve depth discontinuities at object boundaries while smoothing flat regions.
+4. **Remap depth curve.** Apply a power curve or sigmoid to redistribute depth values for better perceptual spread.
+5. **Optionally combine multiple depth models** or multi-scale inference for higher quality.
+
+**Warning signs:**
+- Point cloud looks like a flat disc instead of a 3D surface
+- `np.histogram(depth_map)` shows values clustered in a narrow band
+- Depth transitions between foreground/background are mushy, not crisp
+
+**Phase to address:**
+Phase 1 or 2 — depth quality improvement is independent of physics and can be done in parallel.
 
 ---
 
 ## Technical Debt Patterns
 
-### TD-1: Hardcoded Feature-to-Visual Mappings
+Shortcuts that seem reasonable but create long-term problems.
 
-**What goes wrong:** The mapping between extracted features (e.g., "average color hue") and visual parameters (e.g., "particle velocity") gets hardcoded as direct function calls instead of being data-driven. Adding new mappings requires code changes rather than configuration.
-
-**How to avoid:** Design a **mapping graph** from day one. Each mapping is a node: input feature -> transform function -> output visual parameter. Users manipulate the graph through the GUI. Internally, mappings are stored as serializable data (JSON/TOML), not code.
-
-**Warning signs:**
-- Functions named `map_color_to_velocity()` with hardcoded logic
-- Adding a new feature-to-visual mapping requires changing Python/Rust code
-- No way to save/load mapping presets
-
-**Phase to address:** Phase 2 (mapping engine).
-
-### TD-2: Monolithic Feature Extraction Pipeline
-
-**What goes wrong:** All feature extractors (depth, edges, color, semantics) are coupled into a single pipeline that must run in order. Want to skip depth estimation? Too bad, it's step 3 of 7. Want to add a new extractor? Modify the giant pipeline function.
-
-**How to avoid:** Each feature extractor is a **plugin** with a standard interface: takes an image path, returns a typed feature result. A registry/manifest lists available extractors. The pipeline orchestrator runs whichever extractors the user has enabled, in parallel where possible.
-
-**Warning signs:**
-- A single `extract_features()` function longer than 200 lines
-- Feature extractors share state or depend on each other's outputs
-- Cannot run one extractor without running all of them
-
-**Phase to address:** Phase 1 (extraction architecture).
-
-### TD-3: No Intermediate Format Versioning
-
-**What goes wrong:** The feature store format changes as new extractors are added, but old extracted data can't be read by new code. Users must re-extract thousands of images whenever the format changes.
-
-**How to avoid:** Version the feature store schema from v1. Include a version field in metadata. Write migration code when the schema changes. Design for forward compatibility (new fields are optional; old readers ignore unknown fields).
-
-**Warning signs:**
-- Feature store has no version field
-- Code crashes when reading features extracted by an older version
-- "Just re-run extraction" is the answer to format mismatch
-
-**Phase to address:** Phase 1 (storage design).
-
----
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| CPU-side spatial hash (current) | Simpler code, no GPU prefix sum | Must transfer data GPU->CPU->GPU every frame, kills performance at 1M+ particles | Never for production — replace with GPU hash in Phase 1 |
+| All params as "visual" (hot-reload) | No restart needed for any change | Some param changes need restart for stability (e.g., changing smoothing_radius invalidates density cache). No physics restart = accumulated numerical errors | Only during prototyping — classify params properly in Phase 1 |
+| 1700-line main_window.py | Everything in one file, easy to find | Cannot test panels independently, every change risks breaking unrelated features, merge conflicts | Never — extract before adding v2.0 features |
+| Hardcoded boundary (50 units) | Simple boundary containment | Does not scale with different point cloud sizes. A small portrait and a 1000-photo collection need different boundaries | Phase 1 — derive boundary from point cloud bounding box |
+| Force clearing via CPU zero buffer | Simple, correct | Transfers N*16 bytes of zeros from CPU to GPU every frame. For 1M particles = 16MB/frame of bus traffic | Replace with a compute shader that writes zeros, or use buffer mapping |
 
 ## Integration Gotchas
 
-### IG-1: ONNX Operator Coverage Gaps on DirectML
+Common mistakes when connecting to external services.
 
-**What goes wrong:** Not all ONNX operators are supported by every execution provider. DirectML supports most standard operators but may lack exotic ones used by cutting-edge models. The model converts to ONNX successfully but fails at runtime with "unsupported operator" errors.
-
-**How to avoid:**
-- Test inference with DirectML immediately after ONNX conversion, not days later.
-- Use `onnxruntime`'s `get_providers()` to verify DirectML is active.
-- For unsupported operators, either: (a) simplify the model's ONNX export with `opset_version` adjustments, (b) use graph optimization to replace unsupported ops, or (c) fall back to CPU for that specific model.
-- Windows ML (DirectML successor) may support more operators -- check compatibility.
-
-**Phase to address:** Phase 1.
-
-### IG-2: Color Space Mismatches Across Pipeline Stages
-
-**What goes wrong:** Images are loaded as sRGB, feature extractors expect linear RGB, the renderer uses linear color space, and the GUI displays in sRGB. Intermediate conversions are missed, causing washed-out or oversaturated visuals. Extracted colors don't match what the user sees in the viewport.
-
-**How to avoid:**
-- Establish a **canonical color space** for internal processing (linear RGB float32).
-- Convert to linear on ingest, convert to sRGB only for display.
-- Document the color space at every pipeline boundary.
-- Test with images that have known colors (color checker charts).
-
-**Phase to address:** Phase 1-2 boundary (extraction writes linear, renderer reads linear).
-
-### IG-3: Coordinate System Mismatches
-
-**What goes wrong:** 2D image features (pixel coordinates) must be mapped to 3D space. Different libraries use different conventions: Y-up vs Z-up, left-handed vs right-handed, pixel origin at top-left vs bottom-left. Point clouds end up mirrored, rotated, or scaled incorrectly.
-
-**How to avoid:**
-- Choose one 3D coordinate convention and document it (recommendation: right-handed, Y-up, matching Vulkan's clip space expectations).
-- Write explicit coordinate transform functions at every boundary between 2D image space and 3D world space.
-- Visual regression tests: render a known dataset and compare against a reference screenshot.
-
-**Phase to address:** Phase 2 (when 2D features meet 3D renderer).
-
----
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| Claude API | Sending full-resolution images in API calls (expensive, slow) | Resize to 512px max dimension before base64 encoding. Use `detail: low` in vision requests |
+| Claude API | Parsing natural language responses as structured data | Use structured output / tool_use responses. Request JSON with a schema |
+| ONNX Runtime (Depth Anything V2) | Loading model on every inference call | Load model once at startup, reuse session. Model loading is 2-5 seconds |
+| wgpu device | Assuming device creation always succeeds | Handle adapter not found, device lost, and out-of-memory. Especially on AMD where Vulkan support varies by driver version |
+| PySide6 + GPU rendering | Updating UI from worker threads directly | Always use signals/slots or `QMetaObject.invokeMethod` to cross thread boundaries. Direct widget access from worker threads causes crashes |
 
 ## Performance Traps
 
-### PT-1: CPU-GPU Data Transfer Bottleneck
+Patterns that work at small scale but fail as usage grows.
 
-**What goes wrong:** Feature data is extracted on the GPU (via ONNX inference), copied to CPU for processing, then copied back to GPU for rendering. Each CPU-GPU transfer is expensive. With millions of points updated per frame, this round-trip kills performance.
-
-**Why it happens:** It's natural to process data in Python/CPU land between extraction and rendering. But the data should ideally never leave the GPU.
-
-**How to avoid:**
-- Design for **GPU-resident data** where possible. Feature extraction outputs should feed directly into GPU buffers used by the renderer.
-- If CPU processing is needed (e.g., Python-based mapping logic), batch it -- don't transfer per-frame.
-- Use mapped/pinned memory for transfers that must happen.
-- Compute shaders can handle feature-to-visual mapping on the GPU, keeping data GPU-side.
-
-**Warning signs:**
-- Frame time spikes correlating with data upload calls
-- `memcpy` or buffer upload operations in the per-frame render loop
-- GPU utilization low despite visual complexity
-
-**Phase to address:** Phase 2-3 (rendering + mapping integration).
-
-### PT-2: Python GIL Blocking the Render Loop
-
-**What goes wrong:** If the application uses Python for orchestration, the Global Interpreter Lock (GIL) serializes CPU-bound work. Feature extraction (even if GPU-accelerated) still has Python-side overhead that blocks the render thread, causing viewport stutter.
-
-**How to avoid:**
-- Run the renderer in a separate **process**, not thread. Use shared memory or memory-mapped files for communication.
-- Alternatively, write the renderer in Rust/C++ and embed Python for scripting/orchestration only.
-- Use `multiprocessing` or `asyncio` with process pools for extraction tasks.
-- If using Rust: no GIL problem. The renderer and extraction can run in parallel threads naturally.
-
-**Warning signs:**
-- Viewport FPS drops during feature extraction even though GPU has capacity
-- `threading` used instead of `multiprocessing` for CPU-bound work
-- Slider adjustments lag when background processing is active
-
-**Phase to address:** Phase 1 (language/architecture choice).
-
-### PT-3: Naive Point Cloud Generation (One Point Per Pixel)
-
-**What goes wrong:** The simplest approach generates one 3D point per pixel in the source image. A single 4K photo = 8.3 million points. 1,000 photos = 8.3 billion points. This is unmanageable.
-
-**How to avoid:**
-- **Downsample intelligently**: extract features at lower resolution, generate points at salient locations only.
-- Use edge/saliency detection to concentrate points where visual information is dense.
-- Implement **importance sampling**: more points in interesting regions, fewer in uniform areas.
-- Set a per-image point budget (e.g., 10,000-100,000 points per image) and use feature importance to allocate.
-
-**Warning signs:**
-- Point count equals `width * height * num_images`
-- All regions of an image contribute equally to the point cloud
-- System runs out of memory on the 10th image
-
-**Phase to address:** Phase 2 (point cloud generation strategy).
-
----
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| CPU spatial hash rebuild | FPS drops linearly with particle count | GPU-side prefix sum spatial hash | > 100K particles |
+| Per-frame CPU buffer clear (zeros upload) | Bus bandwidth saturated, GPU stalls waiting for transfer | GPU compute shader to clear buffers | > 500K particles |
+| 128^3 spatial hash grid (2M cells, 8MB) | Memory waste for sparse particle distributions | Compact hash table (hash map) instead of dense grid | Always wasteful, but functional until memory pressure matters |
+| SPH 27-cell neighbor search | O(N * k) where k = neighbors. With high density k can be 200+ per particle | Cap neighbor count per particle (e.g., max 64). Use spatial hierarchy | > 200K particles in a small volume |
+| GPU readback for position data | Stalls GPU pipeline, adds 1+ frame of latency | Use GPU-GPU buffer copies, avoid readback except for export | Any real-time use (already avoided in render path, but `read_positions()` exists for export) |
+| Rebuilding all bind groups every frame | CPU overhead for bind group creation | Only rebuild when buffer swap occurs (every step, but skip if paused) | > 3 compute passes per frame (currently 4) |
 
 ## UX Pitfalls
 
-### UX-1: No Preview During Long Processing
+Common user experience mistakes in this domain.
 
-**What goes wrong:** Extracting features from 5,000 photos takes hours. The user sees a progress bar and nothing else. They have no idea if the result will be interesting until extraction completes.
-
-**How to avoid:**
-- Show **progressive previews**: after the first 50 images, render a preliminary sculpture. Update as more images are processed.
-- Display extracted feature thumbnails as they complete (depth maps, edge maps, color palettes).
-- Allow users to **start exploring** with partial data while extraction continues in the background.
-
-**Phase to address:** Phase 3 (UX polish).
-
-### UX-2: Parameter Overload in High-Control Mode
-
-**What goes wrong:** The high-control mode exposes 50+ sliders and parameters. Users are overwhelmed and can't find meaningful combinations. The interface becomes a wall of knobs.
-
-**How to avoid:**
-- Group parameters into **layers**: Global (affects everything), Per-Feature (affects one data source), Per-Visual (affects one rendering aspect).
-- Provide **presets** as starting points that users can modify.
-- Use progressive disclosure: show 5-8 key parameters by default, expand to full control on demand.
-- Discovery mode should produce parameter settings that users can then inspect/modify in high-control mode -- bridging the two modes.
-
-**Phase to address:** Phase 3 (GUI design).
-
-### UX-3: No Undo/History for Parameter Changes
-
-**What goes wrong:** User adjusts 15 parameters to find a beautiful result, then accidentally moves one slider and can't get back. With real-time rendering, there's no "render this again" -- the moment is lost.
-
-**How to avoid:**
-- Implement **parameter snapshots**: save the full parameter state as a named preset at any time.
-- Auto-snapshot on significant changes (slider released, preset loaded).
-- Provide undo/redo for parameter changes (command pattern on the parameter state).
-
-**Phase to address:** Phase 3 (interaction design).
-
----
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Physics params require knowledge of SPH to tune | User has no idea what "gas constant" or "rest density" mean | Provide artist-friendly presets ("flowing water", "thick honey", "smoke") with underlying physics params hidden. Expose "viscosity" and "turbulence" as intuitive sliders |
+| Parameter change restarts sim, losing interesting state | User found a beautiful configuration, tweaked one thing, everything resets | Hot-reload all possible params. For params that truly need restart, warn first and offer "snapshot current state" |
+| No undo for parameter changes | User cannot experiment safely | Parameter history with undo/redo (QUndoStack exists but needs wiring to sim params) |
+| White viewport background with no gradient or environment | Particles look flat and disconnected from space | Subtle gradient background, optional ground plane shadow, ambient occlusion in post-fx |
+| Simulation controls buried in separate panel | User must switch panels to start/stop/restart sim | Persistent sim controls (play/pause/restart) in toolbar or viewport overlay |
+| No visual feedback for force fields | User adjusts "wind" but cannot see where wind flows | Optional debug visualization: draw flow field as streamlines, show attractor positions as glowing spheres |
 
 ## "Looks Done But Isn't" Checklist
 
-| Feature | Looks Done When... | Actually Done When... |
-|---------|--------------------|-----------------------|
-| Feature extraction | Works on 10 JPEG photos | Works on 5,000 mixed-format images (JPEG, PNG, RAW, HEIC) with resume-on-failure |
-| Point cloud rendering | 1M points at 60 FPS | 50M+ points at 60 FPS with LOD, frustum culling, and camera-distance-based detail |
-| GUI controls | Sliders move, values change | Changes apply in real-time without frame drops, undo works, presets save/load |
-| AMD GPU support | "It runs" | Tested on actual RX 9060 XT hardware, not just CPU fallback silently activating |
-| Color pipeline | "Colors look right" | Verified with color checker: input sRGB -> processing linear -> display sRGB, gamma correct |
-| Batch processing | Can process a folder | Handles missing files, corrupt images, mixed orientations, EXIF rotation, and resumes after crash |
-| Discovery mode | "Makes something pretty" | Produces meaningfully different outputs based on different input data (not just random noise) |
-| Save/export | Can save a screenshot | Can save the full project state (images, features, mappings, camera position) and reload it identically |
+Things that appear complete but are missing critical pieces.
 
----
+- [ ] **SPH simulation:** Looks like it runs (particles move) but forces are wrong — verify kernel coefficients produce reasonable density values (should be near rest_density, not 1e6+)
+- [ ] **Spatial hash:** Code exists and compiles but only runs at init — verify hash is rebuilt every frame
+- [ ] **Depth maps:** Texture uploads successfully but values are compressed — verify histogram spans [0, 1] with reasonable distribution
+- [ ] **Claude integration:** API calls succeed and return text — verify response is parsed into actual parameter values and applied with interpolation
+- [ ] **UI rework:** Layout looks clean in screenshot — verify all signal connections still work (load photo -> extract -> build point cloud -> simulate flow still functions end-to-end)
+- [ ] **AMD compatibility:** App launches and renders on AMD — verify compute shaders produce correct results (compare output against known-good reference)
+- [ ] **Force clamping:** Forces are capped — verify the cap is applied BEFORE integration, not after (clamping velocity after the fact does not prevent position jumps)
+- [ ] **Damping:** Velocity damps each frame — verify damping works correctly with symplectic Euler (damping should be applied to velocity, not acceleration)
+- [ ] **Double buffering:** Buffers swap correctly — verify bind groups are rebuilt after swap (stale bind group = reading/writing wrong buffer = corruption)
 
 ## Recovery Strategies
 
-### When GPU Compute Path Fails
-1. Verify DirectML/ONNX Runtime is detecting the GPU: `ort.get_available_providers()`
-2. Fall back to CPU inference (slower but functional)
-3. Check Windows GPU driver version -- RDNA 4 needs recent Adrenalin drivers
-4. Check for TDR (Timeout Detection and Recovery) -- increase Windows registry `TdrDelay` if GPU compute takes >2 seconds per dispatch
+When pitfalls occur despite prevention, how to recover.
 
-### When Point Cloud Rendering Stutters
-1. Reduce point budget (fewer points rendered per frame)
-2. Enable frustum culling (don't render off-screen points)
-3. Check for CPU-GPU memory transfer bottleneck (profile with RenderDoc or Radeon GPU Profiler)
-4. Switch from point primitives to compute-based rendering
-
-### When Feature Extraction Produces Garbage
-1. Check input image color space (sRGB assumed by most models)
-2. Verify ONNX model input dimensions match actual input (many models expect 224x224 or 384x384)
-3. Check normalization: most models expect `[0, 1]` or `[-1, 1]` float input, not `[0, 255]` uint8
-4. Test the same model on CPU to rule out DirectML execution differences
-
-### When the Application Freezes
-1. Check if GPU TDR is triggering (Event Viewer > System > "Display driver stopped responding")
-2. Check if Python GIL is blocking the render thread
-3. Check if feature extraction is running synchronously instead of async
-4. Monitor VRAM usage -- near-100% VRAM can cause driver-level stalls
-
----
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Particles explode | LOW | Add force clamping (single shader change). Set MAX_FORCE = 10 * gravity magnitude. Add velocity clamping. Takes 1-2 hours |
+| Stale spatial hash | MEDIUM | Implement GPU prefix-sum hash. Requires new compute shaders (hash, count, scan, scatter). Takes 2-3 days |
+| UI rework broke features | MEDIUM | Git revert to last working commit, apply visual changes incrementally with testing between each change |
+| AMD TDR crashes | LOW-MEDIUM | Reduce chunk size. Add timing instrumentation. If persistent, switch to CPU fallback for that compute pass |
+| LLM latency freezes viewport | LOW | Verify all Claude calls are on background thread. Add a 5-second timeout. Queue responses |
+| Depth maps low quality | LOW | Add numpy post-processing (histogram equalization). 20 lines of code, immediate improvement |
+| SPH params produce NaN | MEDIUM | Add NaN guards in shader (`if isnan(force) { force = vec3(0.0); }`). Investigate which kernel/param combination causes the NaN. Usually division by zero in density |
 
 ## Pitfall-to-Phase Mapping
 
-| Phase | Pitfalls to Address | Priority |
-|-------|---------------------|----------|
-| **Phase 1: Foundation** | CP-1 (GPU compute strategy), CP-2 (scaling architecture), CP-4 (ONNX model validation), CP-5 (GUI+renderer architecture), TD-2 (plugin extraction), TD-3 (format versioning), IG-1 (DirectML operator gaps), PT-2 (GIL/process architecture) | CRITICAL -- wrong decisions here cause rewrites |
-| **Phase 2: Rendering + Mapping** | CP-3 (VRAM management), TD-1 (data-driven mappings), IG-2 (color spaces), IG-3 (coordinate systems), PT-1 (CPU-GPU transfer), PT-3 (naive point generation) | HIGH -- rendering architecture must be right from start |
-| **Phase 3: UX + Polish** | UX-1 (progressive preview), UX-2 (parameter overload), UX-3 (undo/history) | MEDIUM -- can iterate, but plan for these upfront |
+How roadmap phases should address these pitfalls.
 
----
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| SPH kernel explosion | Phase 1 (Physics Fix) | Log max density per frame. Should be within 2x of rest_density for a stable sim |
+| Stale spatial hash | Phase 1 (Physics Fix) | After 100 frames, spatial hash cell assignments should match actual particle positions (sample 100 random particles, verify cell) |
+| Force accumulation overflow | Phase 1 (Physics Fix) | Log max force magnitude. Should never exceed MAX_FORCE constant |
+| AMD TDR timeout | Phase 1 (Physics Fix) | Run 1M particle sim for 5 minutes on RX 9060 XT without device lost event |
+| UI scope creep | Phase 2 (UI Rework) | Written scope document listing exactly which files change. Review at midpoint: if scope has grown > 20%, stop and reassess |
+| LLM latency in render loop | Phase 3 (Claude Integration) | Measure frame time with Claude panel active vs inactive. Difference should be < 1ms |
+| Depth map quality | Phase 1 or 2 (parallel) | Histogram of output depth values should use > 80% of [0, 1] range |
+| Parameter animation | Phase 1 (Physics Fix) | Parameter changes animate smoothly over 0.5s. No visual popping when changing any slider |
+| NaN propagation | Phase 1 (Physics Fix) | Run sim for 1000 frames, readback positions, assert no NaN/Inf values |
 
 ## Sources
 
-- [ROCm 7.2.0 Release Notes](https://rocm.docs.amd.com/en/latest/about/release-notes.html)
-- [ROCm 6.4.4 PyTorch Windows Support](https://wccftech.com/amd-rocm-6-4-4-pytorch-support-windows-radeon-9000-radeon-7000-gpus-ryzen-ai-apus/)
-- [AMD ROCm 7.0.2 with RX 9060 Support](https://videocardz.com/newz/amd-releases-rocm-7-0-2-with-radeon-rx-9060-support)
-- [AMD HIP SDK for Windows](https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html)
-- [DirectML GitHub (Maintenance Mode)](https://github.com/microsoft/DirectML)
-- [Windows ML - Future of ML on Windows](https://blogs.windows.com/windowsdeveloper/2025/05/19/introducing-windows-ml-the-future-of-machine-learning-development-on-windows/)
-- [ONNX Runtime DirectML Execution Provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
-- [AMD GPUOpen ONNX + DirectML Guide](https://gpuopen.com/learn/onnx-directlml-execution-provider-guide-part1/)
-- [Rendering Point Clouds with Compute Shaders (Schutz et al.)](https://arxiv.org/pdf/2104.07526)
-- [Magnopus: How We Render Extremely Large Point Clouds](https://www.magnopus.com/blog/how-we-render-extremely-large-point-clouds)
-- [vsgPoints - Vulkan Point Cloud Rendering](https://github.com/vsg-dev/vsgPoints)
-- [OpenCV DNN Module](https://opencv.org/opencv-dnn-module/)
-- [wgpu - Portable Rust Graphics Library](https://wgpu.rs/)
-- [AMD GPU Acceleration Technologies Explained (2025)](https://gist.github.com/danielrosehill/8793e2028ef4bd08c6ca955a38b40e5b)
+- Direct analysis of `apollo7/simulation/shaders/sph.wgsl` — kernel coefficient math
+- Direct analysis of `apollo7/simulation/shaders/forces.wgsl` — unbounded attraction force
+- Direct analysis of `apollo7/simulation/shaders/integrate.wgsl` — force accumulation without clamping
+- Direct analysis of `apollo7/simulation/buffers.py` lines 146-148 — spatial hash only built at init
+- Direct analysis of `apollo7/simulation/parameters.py` — default parameter values
+- Direct analysis of `apollo7/gui/main_window.py` — 1700+ line monolith with interleaved concerns
+- SPH kernel mathematics: Muller et al., "Particle-Based Fluid Simulation for Interactive Applications" (2003) — standard kernel formulas
+- AMD TDR behavior: Windows WDDM timeout detection documentation
+- General particle simulation stability: Bridson, "Fluid Simulation for Computer Graphics" — CFL condition, force clamping
+
+---
+*Pitfalls research for: Apollo 7 v2.0 — fluid particle simulation, UI rework, LLM integration, AMD GPU compute*
+*Researched: 2026-03-15*

@@ -1,194 +1,260 @@
-# Stack Research
+# Stack Research: v2.0 Additions
 
-**Domain:** Data-driven generative art pipeline (local, AMD GPU, Windows 11)
-**Researched:** 2026-03-14
-**Overall Confidence:** MEDIUM — ROCm on Windows is real but young; rendering stack is proven but niche
+**Domain:** Fluid physics, organic motion, UI rework, Claude-driven creative direction
+**Researched:** 2026-03-15
+**Confidence:** MEDIUM — fluid physics on AMD consumer GPUs has limited precedent; UI and Claude integration are HIGH confidence
 
 ## Executive Summary
 
-The AMD GPU constraint on Windows is the single biggest stack driver. As of early 2026, AMD has delivered on its ROCm-on-Windows promise: PyTorch 2.9.1 runs natively on RX 9060 XT via ROCm 7.2 with Python 3.12. For ML inference where PyTorch is overkill, ONNX Runtime + DirectML provides a lighter-weight GPU-accelerated path that works on any DirectX 12 GPU without driver-specific installs.
+The v1.0 stack (Python 3.12, PySide6, pygfx/wgpu, ONNX+DirectML, custom WGSL shaders) is fundamentally sound and should be **kept, not replaced**. The v2.0 question is not "replace the stack" but "what do we add for fluid physics and how do we improve what exists."
 
-For 3D rendering, pygfx (built on wgpu/WebGPU) is the clear choice over Open3D or raw OpenGL. It renders via Vulkan/DX12 natively, has first-class point cloud and particle support, embeds cleanly into Qt via rendercanvas, and is actively maintained (v0.16.0, March 2026). This is the only Python 3D rendering library that is both GPU-vendor-agnostic and designed for real-time interactive scenes.
+For fluid physics: **stay with custom WGSL compute shaders via wgpu-py**. The project already has a working SPH implementation (`sph.wgsl`) with spatial hashing, poly6/spiky kernels, and pressure/viscosity forces. The problem in v1.0 was not the technology -- it was the physics tuning (broken forces, missing surface tension, no coherent form shaping). Taichi Lang is tempting but introduces a transpiler layer that cannot share GPU buffers with pygfx/wgpu, forcing expensive CPU roundtrips. NVIDIA Warp is CUDA-only and dead on arrival for AMD.
 
-For the GUI shell, PySide6 (Qt 6) is the right choice. pygfx has official Qt integration examples, rendercanvas provides a Qt backend, and Qt gives you dockable panels, sliders, and professional desktop UX out of the box. DearPyGui is tempting but has no proven pygfx integration path.
+For UI: **keep PySide6, add qt-material for Material Design theming**. The framework is correct; the v1.0 problem was layout and polish, not toolkit choice.
 
-## Recommended Stack
+For Claude integration: **anthropic SDK v0.84.0 with structured outputs and tool use**. Define parameter schemas as tools, let Claude "call" them to set simulation parameters.
 
-### Core Framework
+## Keep vs Replace Verdict
 
-| Technology | Version | Purpose | Why | Confidence |
-|------------|---------|---------|-----|------------|
-| Python | 3.12 | Runtime | Required by ROCm 7.2 Windows wheels. No choice here. | HIGH |
-| PyTorch + ROCm | 2.9.1 + ROCm 7.2 | GPU-accelerated ML inference | Official AMD support for RX 9060 XT on Windows. Runs depth estimation, semantic models on GPU. | HIGH |
-| ONNX Runtime + DirectML | 1.21+ | Lightweight GPU inference | For models where PyTorch is unnecessary (CLIP embeddings, edge detection CNNs). Works on any DX12 GPU, no ROCm driver dependency. Fallback path. | HIGH |
-| pygfx | 0.16.0 | 3D rendering engine | Built on wgpu (WebGPU). Renders via Vulkan/DX12. GPU-vendor-agnostic. Point clouds, particles, custom shaders. ThreeJS-inspired API. Actively maintained. | HIGH |
-| wgpu-py | 0.31.0 | WebGPU bindings | Low-level GPU access for compute shaders (fluid sim, particle physics). Used by pygfx internally, exposed for custom compute pipelines. | HIGH |
-| rendercanvas | 2.6.3 | Canvas abstraction | Bridges pygfx rendering to Qt widgets. Provides WgpuWidget for embedding 3D viewports in PySide6 layouts. | HIGH |
-| PySide6 | 6.8+ | Desktop GUI framework | Official Qt 6 Python bindings. Dockable panels, sliders, menus. pygfx has official Qt integration examples. | HIGH |
+| Current Component | Verdict | Rationale |
+|-------------------|---------|-----------|
+| Python 3.12 | **KEEP** | ROCm pinned to 3.12, everything supports it |
+| PySide6 6.8+ | **KEEP** | Best Qt bindings, LGPL, proven pygfx integration |
+| pygfx 0.16.0 | **KEEP** | No viable alternative for AMD-compatible 3D Python rendering |
+| wgpu-py 0.31.0 | **KEEP** | Foundation for compute shaders AND rendering, actively maintained |
+| rendercanvas 2.6+ | **KEEP** | Bridges pygfx to Qt, no alternative needed |
+| ONNX+DirectML | **KEEP** | Lightweight GPU inference, works on any DX12 GPU |
+| Custom WGSL shaders | **KEEP + EXPAND** | Already have SPH foundation, needs tuning not replacement |
+| extcolors | **KEEP** | Simple, works |
+| OpenCV | **KEEP** | Standard image processing |
 
-### Image Processing & Feature Extraction
+## New Stack Additions for v2.0
 
-| Library | Version | Purpose | Why | Confidence |
-|---------|---------|---------|-----|------------|
-| OpenCV (opencv-python-headless) | 4.10+ | Geometric feature extraction | Edge detection (Canny, Sobel), contour finding, shape analysis, histogram computation. Industry standard, CPU-based, fast enough for batch processing. | HIGH |
-| scikit-image | 0.24+ | Advanced image analysis | Texture descriptors (LBP, GLCM), segmentation, morphological operations. Complements OpenCV for features OpenCV lacks. | HIGH |
-| Pillow | 11+ | Image I/O and basic transforms | Loading, resizing, color space conversion. Lightweight dependency. | HIGH |
-| Depth Anything V2/V3 | V2 or V3 | Monocular depth estimation | Extracts depth maps from single photos. Run via PyTorch+ROCm or export to ONNX+DirectML. V2 is proven; V3 (Nov 2025) is better but verify ONNX export stability. | MEDIUM |
-| CLIP (OpenAI) | ViT-B/32 | Semantic image understanding | Extracts semantic embeddings from photos. Use ONNX-exported version via DirectML for GPU acceleration without PyTorch overhead. | MEDIUM |
-| colorthief / extcolors | latest | Color palette extraction | Dominant color extraction from images. Pure Python, fast. | HIGH |
+### Fluid Physics & Organic Motion
 
-### Compute & Simulation
+| Technology | Version | Purpose | Why Recommended | Confidence |
+|------------|---------|---------|-----------------|------------|
+| Custom WGSL SPH (expand existing) | N/A | Coherent fluid simulation | Already have `sph.wgsl` with spatial hashing, poly6/spiky kernels. Needs: surface tension implementation, vorticity confinement, form-shaping attractors, parameter tuning. Zero new dependencies. Runs on AMD via Vulkan/DX12. | HIGH |
+| noise.py (or inline WGSL) | N/A | Organic curl noise fields | Already have `noise.wgsl` and `flow_field.wgsl`. Expand with 3D curl noise for organic flowing motion. No new dependency. | HIGH |
+| scipy.spatial | 1.14+ (existing) | CPU-side spatial queries | Already a dependency. Use for offline point cloud analysis, Voronoi, Delaunay for mesh-like organic forms. | HIGH |
 
-| Library | Version | Purpose | Why | Confidence |
-|---------|---------|---------|-----|------------|
-| wgpu-py compute shaders | 0.31.0 | GPU particle physics, fluid sim | Write WGSL compute shaders for particle dynamics, force fields, fluid-like behaviors. Runs on Vulkan/DX12 — no CUDA needed. This is how you get real-time particle animation on AMD. | MEDIUM |
-| NumPy | 2.1+ | Array operations | Foundation for all numerical work. Point cloud manipulation, feature vector math. | HIGH |
-| SciPy | 1.14+ | Spatial algorithms | KD-trees for point cloud queries, interpolation for smooth field generation, clustering. | HIGH |
+### UI Rework
 
-### Development Tools
+| Technology | Version | Purpose | Why Recommended | Confidence |
+|------------|---------|---------|-----------------|------------|
+| qt-material | 2.17 | Material Design theming | Instant professional look. Supports PySide6 natively. Dark/light themes, custom accent colors, runtime theme switching. One-line application: `apply_stylesheet(app, theme='dark_teal.xml')`. | HIGH |
+| PySide6 QSS | built-in | Custom widget styling | For fine-tuning beyond qt-material defaults. White viewport background, clean panel borders, slider styling. | HIGH |
 
-| Tool | Purpose | Notes |
-|------|---------|-------|
-| uv | Package management | Fast, modern Python package manager. Handles the complex ROCm wheel URLs better than pip. |
-| conda (miniconda) | Environment isolation | Alternative to uv if ROCm wheel resolution causes issues. AMD docs recommend conda for Python 3.12 env setup. |
-| pytest | Testing | Standard. |
-| ruff | Linting + formatting | Fast, replaces flake8 + black + isort. |
-| pyinstaller | Distribution (future) | Package as standalone .exe if needed later. |
+### Claude-Driven Creative Direction
 
-## Installation
+| Technology | Version | Purpose | Why Recommended | Confidence |
+|------------|---------|---------|-----------------|------------|
+| anthropic | 0.84.0 | Claude API client | Official SDK. Supports structured outputs (beta: `structured-outputs-2025-11-13`), tool use for parameter control. | HIGH |
+| pydantic | 2.x | Parameter schema definition | Define simulation parameter schemas that Claude returns as structured output. Type-safe, validates Claude responses automatically. | HIGH |
 
-```bash
-# Create environment (conda approach, recommended by AMD)
-conda create -n apollo7 python=3.12
-conda activate apollo7
+### Supporting Libraries
 
-# --- ROCm SDK + PyTorch (AMD GPU ML inference) ---
-pip install --no-cache-dir ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_core-7.2.0.dev0-py3-none-win_amd64.whl ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_devel-7.2.0.dev0-py3-none-win_amd64.whl ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm_sdk_libraries_custom-7.2.0.dev0-py3-none-win_amd64.whl ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/rocm-7.2.0.dev0.tar.gz
+| Library | Version | Purpose | When to Use | Confidence |
+|---------|---------|---------|-------------|------------|
+| noise (perlin-noise) | 1.2.2 | CPU-side noise generation | For pre-computing noise textures to upload to GPU. Alternative to pure WGSL noise if CPU path needed. | MEDIUM |
+| scikit-learn | 1.5+ | Clustering for sculpture forms | K-means/DBSCAN to find natural groupings in point clouds before fluid sim. Optional, CPU-only. | LOW |
 
-pip install --no-cache-dir ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torch-2.9.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl ^
-    https://repo.radeon.com/rocm/windows/rocm-rel-7.2/torchvision-0.24.1%2Brocmsdk20260116-cp312-cp312-win_amd64.whl
+## Detailed Technology Analysis
 
-# --- ONNX Runtime + DirectML (lightweight GPU inference) ---
-pip install onnxruntime-directml
+### Why NOT Taichi Lang
 
-# --- 3D Rendering ---
-pip install pygfx rendercanvas
+**Taichi Lang v1.7.4** is a productive GPU compute framework with a Vulkan backend that theoretically works on AMD consumer GPUs. It excels at particle simulations -- the taichi_elements project simulates 1 billion MPM particles. However, for Apollo 7 it is the wrong choice:
 
-# --- GUI ---
-pip install PySide6
+1. **No GPU buffer interop with wgpu/pygfx.** Taichi allocates its own GPU memory via its own Vulkan instance. pygfx uses a separate wgpu Vulkan/DX12 instance. There is no shared buffer API between them. Data must roundtrip: Taichi GPU -> CPU (numpy) -> wgpu GPU. At 500K+ particles per frame, this CPU bounce kills real-time performance.
 
-# --- Image Processing ---
-pip install opencv-python-headless scikit-image Pillow
+2. **Redundant abstraction.** Apollo 7 already writes WGSL compute shaders that run on the same wgpu device as the renderer. Adding Taichi means maintaining two GPU compute systems doing the same thing.
 
-# --- Utilities ---
-pip install numpy scipy
+3. **Version stability concerns.** Taichi v1.7.4 (July 2025) is the latest stable release. The Vulkan backend works but is less battle-tested than CUDA on consumer AMD RDNA 4 hardware. No RDNA 4-specific testing evidence found.
 
-# --- Color extraction ---
-pip install extcolors
+4. **Build complexity.** Taichi's pip package is 100MB+ and brings its own LLVM-based compiler. Heavy dependency for a feature achievable with existing WGSL shaders.
 
-# --- Dev tools ---
-pip install pytest ruff
+**Verdict: Do not add Taichi.** Improve the existing WGSL SPH shaders instead.
+
+*Sources: [Taichi GitHub](https://github.com/taichi-dev/taichi), [Taichi Vulkan Docs](https://docs.taichi-lang.org/docs/taichi_vulkan), [Taichi ndarray interop](https://docs.taichi-lang.org/docs/master/ndarray), [PyPI taichi 1.7.4](https://pypi.org/project/taichi/)*
+
+### Why NOT NVIDIA Warp
+
+**NVIDIA Warp v1.12.0** (March 2026) is an excellent GPU simulation framework -- for NVIDIA GPUs. It is CUDA-only. The documentation explicitly states "GPU support requires a CUDA-capable NVIDIA GPU." There is no Vulkan, OpenCL, or DirectX backend. No AMD GPU support exists or is planned.
+
+**Verdict: Completely incompatible with project hardware.** Do not consider.
+
+*Source: [NVIDIA Warp GitHub](https://github.com/NVIDIA/warp), [Warp Docs](https://nvidia.github.io/warp/)*
+
+### Why NOT PySPH / pySPlisHSPlasH
+
+**PySPH** (pypr/pysph) supports OpenCL for GPU acceleration, which theoretically works on AMD GPUs. However:
+
+1. **Scientific computing focus.** PySPH is designed for engineering SPH simulations (dam breaks, fluid in containers), not artistic data sculptures. The API is geared toward physically accurate results, not visually appealing ones.
+
+2. **No real-time rendering integration.** PySPH outputs particle positions as numpy arrays. Getting those into pygfx requires the same CPU roundtrip problem as Taichi, but worse -- PySPH is not designed for interactive frame-by-frame stepping.
+
+3. **OpenCL on Windows AMD.** AMD's OpenCL support on Windows works but is a legacy path. The future is Vulkan compute, which the project already uses via wgpu.
+
+4. **pySPlisHSPlasH** has CUDA-only GPU acceleration. CPU mode only on AMD.
+
+**Verdict: Overhead without benefit.** The existing WGSL SPH shaders are better suited to this use case.
+
+*Sources: [PySPH GitHub](https://github.com/pypr/pysph), [pySPlisHSPlasH PyPI](https://pypi.org/project/pySPlisHSPlasH/)*
+
+### Why EXPAND Custom WGSL Shaders (Recommended)
+
+The existing `sph.wgsl` implements:
+- Spatial hash grid (128x128x128) for O(N*k) neighbor search
+- Poly6 kernel for density estimation
+- Spiky kernel gradient for pressure forces
+- Viscosity kernel laplacian for viscosity forces
+- Workgroup size 256, efficient GPU utilization
+
+What it is **missing** for v2.0 organic forms:
+- **Surface tension** (currently a placeholder returning `vec3(0.0)`)
+- **Vorticity confinement** (adds swirling, organic motion)
+- **Curl noise integration** (combine flow_field.wgsl with SPH forces)
+- **Form-shaping attractors** (guide particles toward organic shapes)
+- **XSPH velocity smoothing** (smoother collective motion)
+- **Boundary handling** (contain forms within sculpture volume)
+- **Parameter presets** (tuned sets for waves, morphism, breathing)
+
+All of these are WGSL shader enhancements -- no new library dependencies. The compute shaders run on the same wgpu device as the renderer, sharing GPU buffers with zero copy overhead.
+
+### Claude-Driven Parameter Control Architecture
+
+Use Claude's tool use API to let Claude "set" simulation parameters:
+
+```python
+# Define tools that map to simulation parameters
+tools = [
+    {
+        "name": "set_fluid_parameters",
+        "description": "Set SPH fluid simulation parameters for the data sculpture",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "viscosity": {"type": "number", "minimum": 0, "maximum": 1},
+                "pressure_strength": {"type": "number", "minimum": 0, "maximum": 10},
+                "surface_tension": {"type": "number", "minimum": 0, "maximum": 1},
+                "noise_amplitude": {"type": "number", "minimum": 0, "maximum": 5},
+                "mood": {"type": "string", "enum": ["calm", "turbulent", "breathing", "morphing"]},
+            },
+            "required": ["mood"]
+        }
+    }
+]
 ```
 
-**CRITICAL: AMD driver requirement.** Install the 26.1.1 (or later) AMD graphics driver BEFORE installing ROCm wheels. Without this driver, PyTorch will silently fall back to CPU.
+The `anthropic` SDK v0.84.0 supports structured outputs via `client.messages.parse()` with Pydantic models, and tool use via standard `client.messages.create()`. Both approaches work. Tool use is more natural for this case -- Claude "calls" parameter-setting functions based on its analysis of the source photos.
 
-**CRITICAL: pip gotcha.** Use `--no-cache-dir` for ROCm wheels. pip's dependency resolver can silently overwrite the ROCm PyTorch wheel with the CPU-only PyPI version. Consider also using `--no-deps` and installing dependencies separately.
+*Sources: [Anthropic Tool Use Docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview), [Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), [anthropic PyPI](https://pypi.org/project/anthropic/)*
 
-## Alternatives Considered
+### UI Rework: qt-material
 
-| Category | Recommended | Alternative | Why Not |
-|----------|-------------|-------------|---------|
-| 3D Rendering | pygfx + wgpu | Open3D | Open3D's GPU acceleration is CUDA/SYCL-focused. AMD support is limited to Mesa OpenGL drivers. No compute shader pipeline. Not designed for artistic rendering. |
-| 3D Rendering | pygfx + wgpu | Panda3D | Game engine, heavy. Overkill for data sculpture rendering. Python bindings are second-class. |
-| 3D Rendering | pygfx + wgpu | vispy | OpenGL-based, aging. pygfx is its spiritual successor with modern GPU API. |
-| 3D Rendering | pygfx + wgpu | Three.js (via web) | Would require Electron/browser runtime. Adds complexity. pygfx gives similar API natively in Python. |
-| GUI | PySide6 | DearPyGui | No proven integration path with pygfx/wgpu. GPU-rendered UI looks different from native OS. Great for tools, wrong for a creative application that needs professional feel. |
-| GUI | PySide6 | Tkinter | No modern widget set. No docking. Poor for complex creative tools. |
-| GUI | PySide6 | PyQt6 | Essentially identical to PySide6 but GPL-licensed (PySide6 is LGPL). LGPL is more permissive. |
-| ML Inference | PyTorch ROCm | TensorFlow | ROCm TensorFlow on Windows is less mature than PyTorch. AMD's investment is clearly PyTorch-first. |
-| ML Inference (light) | ONNX+DirectML | ONNX+ROCm EP | ROCm Execution Provider for ONNX Runtime is Linux-only. DirectML is the Windows path. |
-| ML Inference (light) | ONNX+DirectML | WinML | WinML is the official successor to DirectML but requires Windows 11 25H2+. If on 24H2, DirectML is safer. Revisit when WinML stabilizes. |
-| Depth Estimation | Depth Anything V2 | MiDaS | Depth Anything V2/V3 surpasses MiDaS in quality. MiDaS is older. |
-| Depth Estimation | Depth Anything V2 | Depth Anything V3 | V3 (Nov 2025) is better but newer. Verify ONNX export works before committing. Start with V2, upgrade to V3. |
-| Package Mgmt | conda + pip | uv only | ROCm wheels use non-standard URLs. uv handles them but conda's env isolation is more battle-tested for ML stacks. |
+**qt-material v2.17** provides Material Design theming for PySide6 with minimal code:
 
-## What NOT to Use
+```python
+from qt_material import apply_stylesheet
+apply_stylesheet(app, theme='dark_teal.xml', extra={'density_scale': '-1'})
+```
 
-| Avoid | Why | Use Instead |
-|-------|-----|-------------|
-| CUDA / cuDNN | Does not work on AMD GPUs. Period. | ROCm (PyTorch) or DirectML (ONNX Runtime) |
-| TensorRT | NVIDIA-only inference optimizer | ONNX Runtime + DirectML |
-| OpenGL (raw) | Deprecated path. No compute shaders. Vendor-inconsistent. | wgpu (WebGPU) via pygfx — wraps Vulkan/DX12 |
-| vispy | Legacy OpenGL renderer. Unmaintained relative to pygfx. | pygfx |
-| matplotlib 3D | Not real-time. Not interactive. Not GPU-accelerated. | pygfx |
-| Stable Diffusion / DALL-E | This project is data transformation, not text-to-image generation. Out of scope per PROJECT.md. | Feature extraction models (Depth Anything, CLIP) |
-| PyOpenCL / PyCUDA | CUDA is out. OpenCL is possible but wgpu compute shaders are more modern and vendor-agnostic. | wgpu-py compute shaders (WGSL) |
-| Taichi Lang | Interesting GPU compute framework but adds a transpiler dependency. wgpu compute shaders are lower-level but more predictable. | wgpu-py compute shaders |
+Features relevant to Apollo 7:
+- 20+ built-in dark/light themes
+- Custom accent color via XML configuration
+- Runtime theme switching
+- Custom CSS overrides for fine-tuning
+- Density scaling for compact/spacious layouts
+- Compatible with PySide6 6.8+
+
+For the white viewport background requested in PROJECT.md, override the viewport widget specifically via QSS while keeping the rest of the UI themed.
+
+*Source: [qt-material PyPI](https://pypi.org/project/qt-material/), [qt-material docs](https://qt-material.readthedocs.io/)*
+
+## Installation (v2.0 additions only)
+
+```bash
+# Claude API integration
+pip install anthropic>=0.84.0 pydantic>=2.0
+
+# UI theming
+pip install qt-material>=2.17
+
+# No other new dependencies required -- fluid physics uses existing wgpu-py compute shaders
+```
+
+## What NOT to Add
+
+| Avoid | Why | Do Instead |
+|-------|-----|------------|
+| Taichi Lang | No GPU buffer sharing with wgpu/pygfx, redundant compute layer, heavy dependency | Expand existing WGSL compute shaders |
+| NVIDIA Warp | CUDA-only, zero AMD support | Custom WGSL via wgpu-py |
+| PySPH / pySPlisHSPlasH | Scientific focus, no real-time rendering integration, CPU roundtrip | Custom WGSL SPH (already implemented) |
+| PyOpenCL | Legacy GPU compute path, AMD moving to Vulkan | wgpu compute shaders (WGSL) |
+| DearPyGui | No pygfx integration, GPU-rendered UI looks non-native | Keep PySide6 + qt-material |
+| Electron / web UI | Massive complexity increase for no benefit | Keep PySide6 |
+| LangChain | Over-abstraction for simple tool-use pattern | Direct anthropic SDK |
+| AutoGen / CrewAI | Multi-agent frameworks, total overkill | Single Claude API call with tool use |
+
+## Version Compatibility Matrix (v2.0 additions)
+
+| Package | Version | Python | Works With | Notes |
+|---------|---------|--------|------------|-------|
+| anthropic | 0.84.0 | >=3.9 | PySide6, any | Pure Python HTTP client, no GPU dependency |
+| pydantic | 2.x | >=3.8 | anthropic SDK | Used internally by anthropic SDK already |
+| qt-material | 2.17 | >=3.7 | PySide6 6.8+ | Verified PySide6 support |
+
+**No new GPU dependencies.** All fluid physics work uses the existing wgpu-py 0.31.0 compute shader pipeline. This is deliberate -- adding a second GPU compute system would create buffer-sharing nightmares.
 
 ## Stack Patterns by Variant
 
-### If ML models run poorly on ROCm (fallback)
-Export all models to ONNX format and run via `onnxruntime-directml`. DirectML works on any DX12 GPU without driver-specific installs. Slower than native ROCm but universally compatible.
+**If WGSL SPH performance is insufficient at high particle counts (>500K):**
+- Optimize spatial hash grid: increase GRID_SIZE, use bitonic sort on GPU for prefix sums
+- Reduce neighbor search radius (smoothing_radius)
+- Use LOD: simulate fewer particles, render more via instancing
+- Last resort: consider Taichi with CPU roundtrip, accepting 30fps instead of 60fps
 
-### If point cloud counts exceed pygfx limits
-For scenes with >5M points, write custom wgpu compute shaders for LOD (level-of-detail) decimation. Render subsets with pygfx, swap LOD levels based on camera distance.
+**If Claude parameter suggestions feel generic:**
+- Pass more context: color palette extracted, depth map statistics, semantic CLIP embeddings
+- Use multi-turn conversation: first analyze photos, then suggest parameters, then refine
+- Store successful parameter sets as presets for future reference
 
-### If fluid simulation is too complex in WGSL
-Fall back to CPU-based simulation (NumPy/SciPy) at lower particle counts. Pre-compute frames, replay as animation in pygfx. Real-time fluid on GPU via wgpu compute is achievable but requires significant shader development.
+**If qt-material styling conflicts with pygfx viewport:**
+- Isolate the viewport widget from global stylesheet using QSS specificity
+- Use `setStyleSheet("")` on the viewport container to reset inherited styles
+- rendercanvas WgpuWidget renders independently of Qt styling (it is a native surface)
 
-### If PySide6 + pygfx integration has issues
-The rendercanvas library also supports GLFW backend. Worst case: render in a standalone GLFW window alongside a PySide6 control panel. Not ideal but functional.
+## Key Architecture Decision: Single GPU Compute Pipeline
 
-## Version Compatibility Matrix
+The most important stack decision for v2.0 is **NOT adding a second GPU compute framework**. The existing architecture has a single wgpu device that:
+1. Runs compute shaders (SPH, forces, noise, flow fields)
+2. Renders the result (pygfx point clouds, particles)
+3. Shares GPU buffers between compute and render with zero copy
 
-| Component | Version | Python | Windows | AMD Driver | Notes |
-|-----------|---------|--------|---------|------------|-------|
-| PyTorch ROCm | 2.9.1 | 3.12 only | 11 | 26.1.1+ | Wheels are cp312 only |
-| ONNX Runtime DirectML | 1.21+ | 3.9-3.12 | 10/11 | Any DX12 | More flexible than ROCm |
-| pygfx | 0.16.0 | 3.10+ | 10/11 | Any Vulkan/DX12 | GPU-vendor-agnostic |
-| wgpu-py | 0.31.0 | 3.10+ | 10/11 | Any Vulkan/DX12 | GPU-vendor-agnostic |
-| rendercanvas | 2.6.3 | 3.10+ | 10/11 | N/A | Canvas abstraction |
-| PySide6 | 6.8+ | 3.9-3.12 | 10/11 | N/A | Qt 6 |
-| OpenCV | 4.10+ | 3.8-3.12 | 10/11 | N/A | CPU-only (fine for feature extraction) |
+Adding Taichi, PySPH, or any external GPU compute framework breaks this. Data would need to go GPU->CPU->GPU every frame. For a real-time data sculpture application running at 60fps with hundreds of thousands of particles, this is unacceptable.
 
-**Key constraint:** Python 3.12 is mandatory because ROCm wheels only ship cp312. Everything else supports 3.12, so this is not a conflict — just a hard pin.
-
-## Dual-Path GPU Strategy
-
-This stack uses two independent GPU acceleration paths:
-
-1. **ROCm (PyTorch)** — For heavy ML models (Depth Anything, semantic segmentation). Requires AMD-specific driver and SDK. Higher performance for large models.
-
-2. **DirectML (ONNX Runtime)** — For lighter ML models (CLIP embeddings, small CNNs). Works on any DX12 GPU. No AMD-specific setup. Good fallback if ROCm has issues.
-
-3. **wgpu/Vulkan (pygfx)** — For all 3D rendering and GPU compute. Completely independent of ML stack. Uses Vulkan or DX12 backend. No vendor-specific code.
-
-These three paths are independent. If ROCm breaks, rendering still works. If a model fails on ROCm, try ONNX+DirectML. This redundancy is deliberate given the relative youth of AMD's ML-on-Windows story.
+The right approach is: **write better WGSL shaders, not more Python dependencies.**
 
 ## Sources
 
 ### Official Documentation (HIGH confidence)
-- [ROCm on Radeon/Ryzen — PyTorch Windows Installation](https://rocm.docs.amd.com/projects/radeon-ryzen/en/latest/docs/install/installrad/windows/install-pytorch.html)
-- [ROCm Compatibility Matrix](https://rocm.docs.amd.com/en/latest/compatibility/compatibility-matrix.html)
-- [AMD ROCm 7.0.2 with RX 9060 Support](https://www.phoronix.com/news/AMD-ROCm-7.0.2-Released)
-- [ONNX Runtime DirectML Execution Provider](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
-- [AMD GPUOpen — ONNX DirectML Guide](https://gpuopen.com/learn/onnx-directlml-execution-provider-guide-part1/)
-- [pygfx GitHub](https://github.com/pygfx/pygfx)
-- [pygfx Documentation — Qt Integration](https://docs.pygfx.org/v0.13.0/_gallery/other/integration_qt.html)
-- [wgpu-py GitHub](https://github.com/pygfx/wgpu-py)
-- [rendercanvas GitHub](https://github.com/pygfx/rendercanvas)
-- [Depth Anything V2 GitHub](https://github.com/DepthAnything/Depth-Anything-V2)
-- [Depth Anything V3 GitHub](https://github.com/ByteDance-Seed/Depth-Anything-3)
-- [CLIP-ONNX GitHub](https://github.com/Lednik7/CLIP-ONNX)
-- [DirectML GitHub (maintenance mode notice)](https://github.com/microsoft/DirectML)
+- [pygfx 0.16.0 — PyPI](https://pypi.org/project/pygfx/) — latest version confirmed March 3, 2026
+- [wgpu-py 0.31.0 — PyPI](https://pypi.org/project/wgpu/) — latest version confirmed March 2, 2026
+- [anthropic 0.84.0 — PyPI](https://pypi.org/project/anthropic/) — latest version confirmed February 25, 2026
+- [qt-material 2.17 — PyPI](https://pypi.org/project/qt-material/) — latest version confirmed April 21, 2025
+- [Taichi 1.7.4 — PyPI](https://pypi.org/project/taichi/) — latest stable, July 31, 2025
+- [NVIDIA Warp 1.12.0 — GitHub](https://github.com/NVIDIA/warp) — CUDA-only confirmed
+- [Anthropic Tool Use Docs](https://platform.claude.com/docs/en/agents-and-tools/tool-use/overview)
+- [Anthropic Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+- [Taichi Vulkan Backend](https://docs.taichi-lang.org/docs/taichi_vulkan)
+- [Taichi ndarray Interop](https://docs.taichi-lang.org/docs/master/ndarray)
 
-### Industry Sources (MEDIUM confidence)
-- [AMD Blog — Road to ROCm on Radeon](https://www.amd.com/en/blogs/2025/the-road-to-rocm-on-radeon-for-windows-and-linux.html)
-- [VideoCardz — AMD ROCm 7.0.2 with RX 9060](https://videocardz.com/newz/amd-releases-rocm-7-0-2-with-radeon-rx-9060-support)
-- [WCCFTech — ROCm 6.4.4 PyTorch Windows](https://wccftech.com/amd-rocm-6-4-4-pytorch-support-windows-radeon-9000-radeon-7000-gpus-ryzen-ai-apus/)
-- [Codrops — WebGPU Fluid Simulations](https://tympanus.net/codrops/2025/02/26/webgpu-fluid-simulations-high-performance-real-time-rendering/)
+### Community Sources (MEDIUM confidence)
+- [AMD ROCm Blog — Taichi on AMD GPUs](https://rocm.blogs.amd.com/artificial-intelligence/taichi/README.html) — AMD Instinct focus, not consumer RDNA
+- [PySPH GitHub](https://github.com/pypr/pysph) — OpenCL support confirmed, scientific focus
+- [Codrops — WebGPU Fluid Simulations](https://tympanus.net/codrops/2025/02/26/webgpu-fluid-simulations-high-performance-real-time-rendering/) — 100K particles on iGPU via WebGPU compute
+- [PythonGUIs — GUI Framework Comparison 2026](https://www.pythonguis.com/faq/which-python-gui-library/) — PySide6 recommended for professional apps
+
+---
+*Stack research for: Apollo 7 v2.0 — fluid physics, organic motion, UI rework, Claude creative direction*
+*Researched: 2026-03-15*
