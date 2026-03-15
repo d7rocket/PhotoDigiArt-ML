@@ -79,7 +79,13 @@ Plans:
   3. Changing any simulation or visual parameter crossfades smoothly over ~0.5 seconds instead of popping instantly
   4. Rendering sustains 60fps at 1M+ particles by sharing GPU buffers directly between compute and render (no CPU readback)
   5. Depth maps extracted from photos show full contrast and color saturation via CLAHE post-processing
-**Plans**: TBD
+**Plans:** 4 plans
+
+Plans:
+- [ ] 05-01-PLAN.md -- GPU buffer sharing: extract-positions shader and zero-copy render
+- [ ] 05-02-PLAN.md -- CLAHE depth enhancement and enriched color extraction
+- [ ] 05-03-PLAN.md -- White background, luminous alpha, and bloom retuning
+- [ ] 05-04-PLAN.md -- Crossfade engine and visual verification checkpoint
 
 ### Phase 6: Interface and Intelligence
 **Goal**: The application looks and feels polished with logical controls, and Claude can analyze photos to suggest parameter sets that produce compelling sculptures
@@ -104,5 +110,5 @@ Phases execute in numeric order: 4 -> 5 -> 6
 | 2. Creative Sculpting | v1.0 | 8/8 | Complete | 2026-03-14 |
 | 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
 | 4. Stable Physics | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
-| 5. Visual Quality | v2.0 | 0/TBD | Not started | - |
+| 5. Visual Quality | v2.0 | 0/4 | Planned | - |
 | 6. Interface and Intelligence | v2.0 | 0/TBD | Not started | - |
