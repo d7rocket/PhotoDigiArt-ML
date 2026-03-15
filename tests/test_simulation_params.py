@@ -1,9 +1,10 @@
-"""Tests for SimulationParams and ParticleBuffer.
+"""Tests for SimulationParams with PBF parameters and uniform packing.
 
 GPU-dependent tests use pytest.importorskip to skip gracefully
 when wgpu is unavailable.
 """
 
+import math
 import struct
 
 import numpy as np
@@ -12,8 +13,8 @@ import pytest
 from apollo7.simulation.parameters import SimulationParams
 
 
-class TestSimulationParamsDefaults:
-    """Verify default parameter values are set correctly."""
+class TestSimulationParamsPBFDefaults:
+    """Verify PBF parameter default values are set correctly."""
 
     def test_noise_defaults(self):
         p = SimulationParams()
@@ -22,22 +23,31 @@ class TestSimulationParamsDefaults:
         assert p.noise_octaves == 4
         assert p.turbulence_scale == 1.0
 
-    def test_sph_defaults(self):
+    def test_pbf_home_defaults(self):
         p = SimulationParams()
-        assert p.viscosity == 0.1
-        assert p.pressure_strength == 1.0
-        assert p.surface_tension == 0.01
-        assert p.smoothing_radius == 0.1
-        assert p.rest_density == 1000.0
-        assert p.gas_constant == 2.0
+        assert p.home_strength == 5.0
+        assert p.breathing_rate == 0.2
+        assert p.breathing_amplitude == 0.15
 
-    def test_force_defaults(self):
+    def test_pbf_solver_defaults(self):
         p = SimulationParams()
-        assert p.attraction_strength == 0.5
-        assert p.repulsion_strength == 0.3
-        assert p.repulsion_radius == 0.1
-        assert p.gravity == (0.0, -0.1, 0.0)
-        assert p.wind == (0.0, 0.0, 0.0)
+        assert p.kernel_radius == 0.1
+        assert p.rest_density == 6378.0
+        assert p.epsilon_pbf == 600.0
+        assert p.solver_iterations == 2
+
+    def test_pbf_pressure_defaults(self):
+        p = SimulationParams()
+        assert p.artificial_pressure_k == 0.0001
+        assert p.artificial_pressure_n == 4
+        assert p.delta_q == 0.03
+        assert p.xsph_c == 0.01
+
+    def test_pbf_stability_defaults(self):
+        p = SimulationParams()
+        assert p.vorticity_epsilon == 0.01
+        assert p.max_force == 50.0
+        assert p.max_velocity == 10.0
 
     def test_integration_defaults(self):
         p = SimulationParams()
@@ -45,42 +55,102 @@ class TestSimulationParamsDefaults:
         assert p.dt == 0.016
         assert p.damping == 0.99
 
+    def test_force_defaults(self):
+        p = SimulationParams()
+        assert p.gravity == (0.0, -0.1, 0.0)
+        assert p.wind == (0.0, 0.0, 0.0)
+
+    def test_runtime_defaults(self):
+        p = SimulationParams()
+        assert p.time == 0.0
+        assert p.breathing_mod == 1.0
+        assert p.particle_count == 0
+
+
+class TestOldSPHParamsRemoved:
+    """Verify old SPH-only fields are removed."""
+
+    def test_no_gas_constant(self):
+        assert not hasattr(SimulationParams(), "gas_constant")
+
+    def test_no_viscosity(self):
+        assert not hasattr(SimulationParams(), "viscosity")
+
+    def test_no_pressure_strength(self):
+        assert not hasattr(SimulationParams(), "pressure_strength")
+
+    def test_no_surface_tension(self):
+        assert not hasattr(SimulationParams(), "surface_tension")
+
+    def test_no_attraction_strength(self):
+        assert not hasattr(SimulationParams(), "attraction_strength")
+
+    def test_no_repulsion_strength(self):
+        assert not hasattr(SimulationParams(), "repulsion_strength")
+
+    def test_no_repulsion_radius(self):
+        assert not hasattr(SimulationParams(), "repulsion_radius")
+
+    def test_no_smoothing_radius(self):
+        assert not hasattr(SimulationParams(), "smoothing_radius")
+
+    def test_no_sph_enabled(self):
+        assert not hasattr(SimulationParams(), "sph_enabled")
+
+    def test_no_performance_mode(self):
+        assert not hasattr(SimulationParams(), "performance_mode")
+
+    def test_no_attractor_global_strength(self):
+        assert not hasattr(SimulationParams(), "attractor_global_strength")
+
 
 class TestUniformBytes:
-    """Verify to_uniform_bytes() produces correctly packed data."""
+    """Verify to_uniform_bytes() produces correctly packed PBF layout."""
+
+    def test_uniform_size_is_128(self):
+        assert SimulationParams.UNIFORM_SIZE == 128
+
+    def test_byte_count_is_128(self):
+        p = SimulationParams()
+        data = p.to_uniform_bytes()
+        assert len(data) == 128
 
     def test_byte_count_is_multiple_of_16(self):
         p = SimulationParams()
         data = p.to_uniform_bytes()
         assert len(data) % 16 == 0
 
-    def test_byte_count_matches_uniform_size(self):
-        p = SimulationParams()
+    def test_home_strength_at_vec4_1_offset_16(self):
+        p = SimulationParams(home_strength=7.5)
         data = p.to_uniform_bytes()
-        assert len(data) == SimulationParams.UNIFORM_SIZE
+        val = struct.unpack_from("<f", data, 16)[0]
+        assert val == pytest.approx(7.5)
 
-    def test_uniform_size_is_112(self):
-        assert SimulationParams.UNIFORM_SIZE == 112
+    def test_kernel_radius_at_vec4_2_offset_32(self):
+        p = SimulationParams(kernel_radius=0.2)
+        data = p.to_uniform_bytes()
+        val = struct.unpack_from("<f", data, 32)[0]
+        assert val == pytest.approx(0.2)
 
-    def test_gravity_packed_correctly(self):
+    def test_vorticity_epsilon_at_vec4_4_offset_64(self):
+        p = SimulationParams(vorticity_epsilon=0.05)
+        data = p.to_uniform_bytes()
+        val = struct.unpack_from("<f", data, 64)[0]
+        assert val == pytest.approx(0.05)
+
+    def test_gravity_at_vec4_5_offset_80(self):
         p = SimulationParams(gravity=(1.0, 2.0, 3.0))
         data = p.to_uniform_bytes()
-        # Gravity is at vec4 index 4 = offset 64 bytes
-        gx, gy, gz, gpad = struct.unpack_from("<4f", data, 64)
-        assert gx == 1.0
-        assert gy == 2.0
-        assert gz == 3.0
-        assert gpad == 0.0
+        gx, gy, gz, damping = struct.unpack_from("<4f", data, 80)
+        assert gx == pytest.approx(1.0)
+        assert gy == pytest.approx(2.0)
+        assert gz == pytest.approx(3.0)
 
-    def test_wind_packed_correctly(self):
-        p = SimulationParams(wind=(0.5, 0.0, -1.0))
+    def test_time_at_vec4_7_offset_112(self):
+        p = SimulationParams(time=42.0)
         data = p.to_uniform_bytes()
-        # Wind is at vec4 index 5 = offset 80 bytes
-        wx, wy, wz, wpad = struct.unpack_from("<4f", data, 80)
-        assert wx == 0.5
-        assert wy == 0.0
-        assert wz == -1.0
-        assert wpad == 0.0
+        val = struct.unpack_from("<f", data, 112)[0]
+        assert val == pytest.approx(42.0)
 
     def test_noise_frequency_at_offset_0(self):
         p = SimulationParams(noise_frequency=2.5)
@@ -88,58 +158,68 @@ class TestUniformBytes:
         val = struct.unpack_from("<f", data, 0)[0]
         assert val == pytest.approx(2.5)
 
-    def test_time_at_correct_offset(self):
-        p = SimulationParams(time=42.0)
-        data = p.to_uniform_bytes()
-        # Time is at vec4 index 6 = offset 96 bytes
-        val = struct.unpack_from("<f", data, 96)[0]
-        assert val == pytest.approx(42.0)
-
 
 class TestParamClassification:
     """Verify visual vs physics parameter classification."""
 
-    def test_visual_params(self):
-        visual = [
-            "noise_frequency",
-            "noise_amplitude",
-            "noise_octaves",
-            "turbulence_scale",
-            "speed",
-            "damping",
-        ]
-        for name in visual:
-            assert SimulationParams.is_visual_param(name), f"{name} should be visual"
-            assert not SimulationParams.is_physics_param(name), (
-                f"{name} should not be physics"
-            )
-
-    def test_all_params_are_visual(self):
-        # All params reclassified as visual in d2f401c -- hot-reload without restart
-        formerly_physics = [
-            "viscosity",
-            "pressure_strength",
-            "surface_tension",
-            "attraction_strength",
-            "repulsion_strength",
-            "repulsion_radius",
-            "smoothing_radius",
+    def test_all_pbf_params_are_visual(self):
+        pbf_params = [
+            "home_strength",
+            "breathing_rate",
+            "breathing_amplitude",
+            "kernel_radius",
             "rest_density",
-            "gas_constant",
-            "gravity",
-            "wind",
+            "epsilon_pbf",
+            "solver_iterations",
+            "artificial_pressure_k",
+            "artificial_pressure_n",
+            "delta_q",
+            "xsph_c",
+            "vorticity_epsilon",
+            "max_force",
+            "max_velocity",
         ]
-        for name in formerly_physics:
-            assert SimulationParams.is_visual_param(name), (
-                f"{name} should be visual (all params are visual post d2f401c)"
-            )
-            assert not SimulationParams.is_physics_param(name), (
-                f"{name} should not be physics (is_physics_param always False)"
-            )
+        for name in pbf_params:
+            assert SimulationParams.is_visual_param(name), f"{name} should be visual"
+
+    def test_noise_params_are_visual(self):
+        for name in ["noise_frequency", "noise_amplitude", "noise_octaves", "turbulence_scale"]:
+            assert SimulationParams.is_visual_param(name), f"{name} should be visual"
+
+    def test_core_params_are_visual(self):
+        for name in ["speed", "damping", "gravity", "wind"]:
+            assert SimulationParams.is_visual_param(name), f"{name} should be visual"
+
+    def test_no_physics_params(self):
+        assert not SimulationParams.is_physics_param("home_strength")
+        assert not SimulationParams.is_physics_param("solver_iterations")
 
     def test_unknown_param_is_neither(self):
         assert not SimulationParams.is_visual_param("nonexistent")
         assert not SimulationParams.is_physics_param("nonexistent")
+
+
+class TestBreathingModulation:
+    """Verify breathing computation."""
+
+    def test_breathing_at_zero_time(self):
+        p = SimulationParams(breathing_amplitude=0.15, breathing_rate=0.2)
+        val = p.compute_breathing(0.0)
+        assert val == pytest.approx(1.0)
+
+    def test_breathing_range(self):
+        p = SimulationParams(breathing_amplitude=0.15, breathing_rate=0.2)
+        # Sample many time values
+        values = [p.compute_breathing(t * 0.1) for t in range(100)]
+        assert min(values) >= 0.85 - 1e-6
+        assert max(values) <= 1.15 + 1e-6
+
+    def test_breathing_is_periodic(self):
+        p = SimulationParams(breathing_amplitude=0.15, breathing_rate=0.2)
+        # Period = 1/0.2 = 5 seconds
+        v1 = p.compute_breathing(1.0)
+        v2 = p.compute_breathing(6.0)
+        assert v1 == pytest.approx(v2, abs=1e-6)
 
 
 class TestWithUpdate:
@@ -157,6 +237,18 @@ class TestWithUpdate:
         p2 = p1.with_update(speed=5.0)
         assert p2.noise_frequency == 3.0
         assert p2.speed == 5.0
+
+    def test_with_update_home_strength(self):
+        p1 = SimulationParams()
+        p2 = p1.with_update(home_strength=10.0)
+        assert p2.home_strength == 10.0
+        assert p1.home_strength == 5.0
+
+    def test_with_update_solver_iterations(self):
+        p1 = SimulationParams()
+        p2 = p1.with_update(solver_iterations=4)
+        assert p2.solver_iterations == 4
+        assert p1.solver_iterations == 2
 
 
 class TestParticleBufferWithMock:
