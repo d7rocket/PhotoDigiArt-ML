@@ -47,7 +47,7 @@ Requirements for initial release. Each maps to roadmap phases.
 ### Creative Controls
 
 - [x] **CTRL-01**: Parameter panel with sliders, color pickers, and numeric inputs that update viewport in real-time
-- [ ] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
+- [x] **CTRL-02**: Feature-to-visual mapping editor -- user can route extracted features to visual parameters
 - [x] **CTRL-03**: Undo/redo on all parameter changes
 - [x] **CTRL-04**: Save/load full project state (parameters, feature data, sculpture configuration)
 - [x] **CTRL-05**: Export high-res still images (2x, 4x viewport resolution, transparent background option)
@@ -130,7 +130,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SIM-03 | Phase 2 | Complete |
 | SIM-04 | Phase 2 | Complete |
 | CTRL-01 | Phase 2 | Complete |
-| CTRL-02 | Phase 3 | Pending |
+| CTRL-02 | Phase 3 | Complete |
 | CTRL-03 | Phase 2 | Complete |
 | CTRL-04 | Phase 2 | Complete |
 | CTRL-05 | Phase 2 | Complete |
