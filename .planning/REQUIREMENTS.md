@@ -49,7 +49,7 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 - [x] **PHYS-02**: PBF (Position Based Fluids) solver replaces SPH with unconditionally stable constraint resolution
 - [x] **PHYS-03**: Spatial hash rebuilds every frame on GPU so neighbor lookups remain correct during motion
 - [x] **PHYS-04**: Force and velocity clamping prevents runaway acceleration
-- [ ] **PHYS-05**: CFL-adaptive timestep adjusts step size based on maximum particle velocity
+- [x] **PHYS-05**: CFL-adaptive timestep adjusts step size based on maximum particle velocity
 - [ ] **PHYS-06**: Curl noise flow fields produce smooth, organic particle motion
 - [ ] **PHYS-07**: Vortex confinement adds swirling, turbulent detail to particle motion
 - [x] **PHYS-08**: Breathing modulation (sine wave on home_strength/noise_amplitude) makes sculptures feel alive

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-15T11:29:00Z"
-last_activity: 2026-03-15 -- PBF solver core shaders and orchestration (04-02)
+stopped_at: Completed 04-03-PLAN.md
+last_updated: "2026-03-15T11:37:04Z"
+last_activity: 2026-03-15 -- Engine PBF integration with CFL timestep and stability tests (04-03)
 progress:
   total_phases: 6
   completed_phases: 3
   total_plans: 25
-  completed_plans: 22
-  percent: 88
+  completed_plans: 23
+  percent: 92
 ---
 
 # Project State
@@ -26,18 +26,24 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 4 of 6 (Stable Physics)
-Plan: 2 of 5 in current phase
+Plan: 3 of 5 in current phase
 Status: Executing
-Last activity: 2026-03-15 -- PBF solver core shaders and orchestration (04-02)
+Last activity: 2026-03-15 -- Engine PBF integration with CFL timestep and stability tests (04-03)
 
-Progress: [█████████░] 88% (v2.0)
+Progress: [█████████░] 92% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2 (v2.0)
-- Average duration: 3.5min
-- Total execution time: 7min
+- Total plans completed: 3 (v2.0)
+- Average duration: 4.3min
+- Total execution time: 13min
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 04    | 01   | 3min     | 2     | 4     |
+| 04    | 02   | 4min     | 2     | 8     |
+| 04    | 03   | 6min     | 2     | 6     |
 
 ## Accumulated Context
 
@@ -56,6 +62,9 @@ Recent decisions affecting current work:
 - [04-01]: All PBF params classified as visual (hot-reload, no restart)
 - [04-02]: Block sums for prefix sum computed on CPU from cell_counts (avoids Blelloch race)
 - [04-02]: Damping applied in finalize pass (velocity *= damping) not predict pass
+- [04-03]: CFL uses conservative estimate from params rather than GPU readback (avoids sync stall)
+- [04-03]: Feature strength range [0.5, 1.5] -- edges hold tighter, flat areas drift more
+- [04-03]: PBF solver rebuilt on restart() for clean state
 
 ### Pending Todos
 
@@ -66,9 +75,10 @@ None yet.
 - AMD RDNA 4 compute driver maturity -- test PBF solver on target hardware immediately after implementation
 - GPU buffer sharing between wgpu compute and pygfx render -- exact API needs prototyping (MEDIUM confidence)
 - PBF tuning for artistic vs. physically accurate results -- needs experimentation
+- GUI references to set_performance_mode need updating (deferred from 04-03)
 
 ## Session Continuity
 
-Last session: 2026-03-15T11:28:57Z
-Stopped at: Completed 04-02-PLAN.md
-Resume file: .planning/phases/04-stable-physics/04-02-SUMMARY.md
+Last session: 2026-03-15T11:37:04Z
+Stopped at: Completed 04-03-PLAN.md
+Resume file: .planning/phases/04-stable-physics/04-03-SUMMARY.md
