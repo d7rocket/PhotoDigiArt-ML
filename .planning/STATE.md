@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-03-15T04:58:05.549Z"
+stopped_at: Completed 03-05-PLAN.md
+last_updated: "2026-03-15T05:03:56.003Z"
 last_activity: 2026-03-15 -- Plan 03-01 complete (CLIP semantic extraction with tokenizer and feature viewer)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 20
-  completed_plans: 16
+  completed_plans: 18
   percent: 100
 ---
 
@@ -60,6 +60,7 @@ Progress: [██████████████] 100% (phases 1-2) + Plan 
 | Phase 03 P03 | 4min | 2 tasks | 5 files |
 | Phase 03 P02 | 5min | 3 tasks | 8 files |
 | Phase 03 P01 | 5min | 2 tasks | 9 files |
+| Phase 03 P05 | 4min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -116,6 +117,9 @@ Recent decisions affecting current work:
 - [Phase 03]: AnimationBinding normalizes generator output to [0,1] then maps to [min_val, max_val]
 - [Phase 03]: Crossfade re-uses preset_applied signal for lerped params (no new main window wiring needed)
 - [Phase 03]: CLIP ViT-B/32 via ONNX for semantic extraction with pure Python BPE tokenizer (no torch)
+- [Phase 03]: Exponential smoothing alpha=0.3 for dimensional slider changes
+- [Phase 03]: 40% window width sliding across param range for dimensional constraints
+- [Phase 03]: Ring buffer max 50 proposals with oldest eviction for discovery history
 
 ### Pending Todos
 
@@ -128,6 +132,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T04:57:52.527Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-03-15T05:03:56.001Z
+Stopped at: Completed 03-05-PLAN.md
 Resume file: None

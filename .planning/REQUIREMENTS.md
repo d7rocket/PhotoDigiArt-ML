@@ -56,7 +56,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Discovery & AI
 
-- [ ] **DISC-01**: Local discovery mode -- randomized but constrained parameter exploration with "more/less like this" feedback loop (no API required)
+- [x] **DISC-01**: Local discovery mode -- randomized but constrained parameter exploration with "more/less like this" feedback loop (no API required)
 - [ ] **DISC-02**: Optional Claude API integration for semantic photo annotation (describe what's in photos -- mood, objects, narrative)
 - [ ] **DISC-03**: Optional Claude API creative direction (suggest how to map extracted features to visual forms)
 - [ ] **DISC-04**: All core functionality works fully offline -- Claude API is additive enrichment only
@@ -136,7 +136,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CTRL-05 | Phase 2 | Complete |
 | CTRL-06 | Phase 2 | Complete |
 | CTRL-07 | Phase 3 | Complete |
-| DISC-01 | Phase 3 | Pending |
+| DISC-01 | Phase 3 | Complete |
 | DISC-02 | Phase 3 | Pending |
 | DISC-03 | Phase 3 | Pending |
 | DISC-04 | Phase 3 | Pending |
