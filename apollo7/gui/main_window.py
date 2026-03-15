@@ -450,6 +450,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.preset_panel.save_current_requested.connect(
             self._on_save_current_preset
         )
+        self.preset_panel.crossfade_changed.connect(
+            self.viewport.apply_crossfaded_preset
+        )
 
         # --- Phase 3: Discovery panel signals ---
         self.discovery_panel.proposal_requested.connect(self._on_discovery_propose)

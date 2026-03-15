@@ -29,6 +29,7 @@ from apollo7.postfx.dof_pass import DepthOfFieldPass
 from apollo7.postfx.ssao_pass import SSAOPass
 from apollo7.postfx.trails import TrailAccumulator
 from apollo7.rendering.camera import CameraController
+from apollo7.rendering.crossfade import CrossfadeEngine
 from apollo7.simulation.parameters import SimulationParams
 
 logger = logging.getLogger(__name__)
@@ -106,6 +107,9 @@ class ViewportWidget(QtWidgets.QWidget):
         self._shared_pos_buf: gfx.Buffer | None = None
         self._shared_color_buf: gfx.Buffer | None = None
         self._gpu_sharing_active: bool = False
+
+        # Crossfade engine for smooth parameter transitions
+        self._crossfade = CrossfadeEngine(self._apply_crossfaded_param)
 
         # Embedding cloud manager (None until collection analysis runs)
         self._embedding_cloud_manager = None
@@ -464,9 +468,10 @@ class ViewportWidget(QtWidgets.QWidget):
             self._sim_engine.toggle_pause()
 
     def update_sim_param(self, name: str, value: float) -> None:
-        """Route a parameter update to the simulation engine.
+        """Route a parameter update through the crossfade engine.
 
-        Visual params are hot-reloaded; physics params trigger restart.
+        Continuous params get smooth ease-out transitions (~0.4s).
+        Discrete params (solver_iterations) snap instantly.
 
         Args:
             name: Parameter name from SimulationParams.
@@ -475,28 +480,91 @@ class ViewportWidget(QtWidgets.QWidget):
         if self._sim_engine is None:
             return
 
-        # Handle compound params (gravity_y, wind_x, wind_z)
+        # Get current value for interpolation start point
+        current = self._get_current_param_value(name)
+        self._crossfade.set_target(name, value, current)
+
+    def _get_current_param_value(self, name: str) -> float:
+        """Get current value of a simulation parameter for crossfade start.
+
+        Args:
+            name: Parameter name.
+
+        Returns:
+            Current float value of the parameter.
+        """
+        if self._sim_engine is None:
+            return 0.0
+
+        params = self._sim_engine.params
+        # Handle compound params
         if name == "gravity_y":
-            current = self._sim_engine.params.gravity
-            self._sim_engine.update_visual_param(
-                "gravity", (current[0], value, current[2])
-            )
+            return params.gravity[1]
         elif name == "wind_x":
-            current = self._sim_engine.params.wind
-            self._sim_engine.update_visual_param(
-                "wind", (value, current[1], current[2])
-            )
+            return params.wind[0]
         elif name == "wind_z":
-            current = self._sim_engine.params.wind
-            self._sim_engine.update_visual_param(
-                "wind", (current[0], current[1], value)
-            )
-        elif SimulationParams.is_visual_param(name):
-            self._sim_engine.update_visual_param(name, value)
-        elif SimulationParams.is_physics_param(name):
-            self._sim_engine.update_physics_param(name, value)
-        else:
-            logger.warning("Unknown simulation param: %s", name)
+            return params.wind[2]
+        elif hasattr(params, name):
+            val = getattr(params, name)
+            return float(val) if not isinstance(val, tuple) else 0.0
+        return 0.0
+
+    def _apply_crossfaded_param(self, name: str, value: float) -> None:
+        """Apply an interpolated parameter value from the crossfade engine.
+
+        Routes the value to the appropriate target: simulation engine,
+        point material, bloom controller, etc.
+
+        Args:
+            name: Parameter name.
+            value: Interpolated value from CrossfadeEngine.
+        """
+        if name == "point_size":
+            self.update_point_material(point_size=value)
+        elif name == "opacity":
+            self.update_point_material(opacity=value)
+        elif name == "bloom_strength" and self._bloom is not None:
+            self._bloom.set_strength(value)
+        elif self._sim_engine is not None:
+            # Route to simulation engine
+            if name == "gravity_y":
+                current = self._sim_engine.params.gravity
+                self._sim_engine.update_visual_param(
+                    "gravity", (current[0], value, current[2])
+                )
+            elif name == "wind_x":
+                current = self._sim_engine.params.wind
+                self._sim_engine.update_visual_param(
+                    "wind", (value, current[1], current[2])
+                )
+            elif name == "wind_z":
+                current = self._sim_engine.params.wind
+                self._sim_engine.update_visual_param(
+                    "wind", (current[0], current[1], value)
+                )
+            elif SimulationParams.is_visual_param(name):
+                self._sim_engine.update_visual_param(name, value)
+            elif SimulationParams.is_physics_param(name):
+                self._sim_engine.update_physics_param(name, value)
+            else:
+                logger.debug("Unknown crossfade param: %s", name)
+
+    def apply_crossfaded_preset(self, preset_dict: dict) -> None:
+        """Apply a preset dict through the crossfade engine for smooth transitions.
+
+        Each key in the preset is routed through CrossfadeEngine.set_target
+        for ease-out interpolation, replacing instant preset snapping with
+        smooth chase animation.
+
+        Args:
+            preset_dict: Dict of {param_name: value} from PresetPanel crossfade.
+        """
+        for name, value in preset_dict.items():
+            try:
+                current = self._get_current_param_value(name)
+                self._crossfade.set_target(name, float(value), current)
+            except (TypeError, ValueError):
+                logger.debug("Skipping non-numeric preset param: %s", name)
 
     def _setup_gpu_buffer_sharing(self, n_particles: int) -> None:
         """Set up zero-copy GPU buffer sharing between simulation and pygfx.
