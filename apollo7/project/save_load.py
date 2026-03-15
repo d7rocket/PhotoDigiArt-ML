@@ -39,6 +39,13 @@ class ProjectState:
     point_cloud_snapshot: dict | None = None
     cached_features: dict | None = None
 
+    # Phase 3 state (backward-compatible defaults)
+    mapping_graph: dict | None = None
+    discovery_dimensions: dict[str, float] = field(default_factory=lambda: {
+        "energy": 0.5, "density": 0.5, "flow": 0.5, "structure": 0.5,
+    })
+    enrichment_enabled: bool = False
+
 
 def save_project(state: ProjectState, path: str) -> None:
     """Serialize ProjectState to a JSON file.
@@ -100,6 +107,12 @@ def load_project(path: str) -> ProjectState:
         depth_exaggeration=data.get("depth_exaggeration", 4.0),
         point_cloud_snapshot=data.get("point_cloud_snapshot"),
         cached_features=data.get("cached_features"),
+        # Phase 3 fields (backward-compatible defaults for older project files)
+        mapping_graph=data.get("mapping_graph"),
+        discovery_dimensions=data.get("discovery_dimensions", {
+            "energy": 0.5, "density": 0.5, "flow": 0.5, "structure": 0.5,
+        }),
+        enrichment_enabled=data.get("enrichment_enabled", False),
     )
 
     logger.info("Project loaded from %s", path)

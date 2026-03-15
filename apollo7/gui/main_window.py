@@ -12,18 +12,32 @@ Layout:
       - Middle: PostFX panel
       - Bottom: Library panel
 
+Phase 3 additions:
+  - Discovery panel in right sidebar (below simulation)
+  - PatchBayEditor as overlay (Ctrl+M toggle)
+  - Crossfade widget via preset panel
+  - ParameterAnimator in render loop
+  - Collection analysis trigger after batch extraction
+  - Enrichment service wiring
+  - Intelligence menu with keyboard shortcuts
+
 Wiring:
   - Library: load photos -> ingestion worker -> thumbnails in library panel
   - Extract: button triggers ExtractionWorker for all loaded photos
   - Progressive build: each photo_complete adds point cloud to viewport
   - Controls: sliders update viewport in real-time, mode toggles regenerate
   - Simulation: Simulate button -> init engine -> start animation loop
+  - Discovery: dimensional sliders -> random walk proposals -> apply to sim
+  - Mapping: feature-to-param connections -> MappingEngine evaluation
+  - Collection: batch extraction -> CLIP embeddings -> DBSCAN/UMAP -> embedding cloud
+  - Enrichment: Claude API toggle -> background worker -> richer descriptions
 """
 
 from __future__ import annotations
 
 import io
 import logging
+import time
 from typing import Any
 
 import numpy as np
@@ -31,7 +45,9 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from PySide6.QtGui import QUndoStack
 
 from apollo7.config.settings import (
+    CLAUDE_API_KEY,
     DEPTH_EXAGGERATION_DEFAULT,
+    ENRICHMENT_ENABLED,
     MIN_WINDOW_SIZE,
     OPACITY_DEFAULT,
     POINT_SIZE_DEFAULT,
@@ -75,6 +91,8 @@ from apollo7.gui.panels.library_panel import LibraryPanel
 from apollo7.gui.panels.postfx_panel import PostFXPanel
 from apollo7.gui.panels.preset_panel import PresetPanel
 from apollo7.gui.panels.simulation_panel import SimulationPanel
+from apollo7.gui.panels.discovery_panel import DiscoveryPanel
+from apollo7.gui.widgets.node_editor import PatchBayEditor
 from apollo7.gui.widgets.progress_bar import ExtractionProgressBar
 from apollo7.gui.widgets.viewport_widget import ViewportWidget
 from apollo7.ingestion.loader import load_image
@@ -82,6 +100,14 @@ from apollo7.pointcloud.generator import PointCloudGenerator
 from apollo7.project.export import export_image
 from apollo7.project.save_load import ProjectState, save_project, load_project
 from apollo7.simulation.parameters import SimulationParams
+from apollo7.animation.animator import ParameterAnimator
+from apollo7.discovery.random_walk import RandomWalk
+from apollo7.discovery.dimensional import DimensionalMapper
+from apollo7.discovery.history import ProposalHistory, Proposal
+from apollo7.mapping.engine import MappingEngine
+from apollo7.mapping.connections import MappingGraph
+from apollo7.collection.analyzer import CollectionAnalyzer
+from apollo7.api.enrichment import EnrichmentService, EnrichmentWorker
 from apollo7.workers.extraction_worker import ExtractionWorker
 from apollo7.workers.ingestion_worker import IngestionWorker
 
@@ -98,6 +124,29 @@ def _make_placeholder(name: str) -> QtWidgets.QWidget:
     label.setAlignment(QtCore.Qt.AlignCenter)
     layout.addWidget(label)
     return widget
+
+
+class _CollectionAnalysisWorker(QtCore.QRunnable):
+    """Background worker for collection analysis (DBSCAN + UMAP)."""
+
+    class Signals(QtCore.QObject):
+        result_ready = QtCore.Signal(object)  # CollectionResult
+        error = QtCore.Signal(str)
+
+    def __init__(self, embeddings: dict[str, np.ndarray]) -> None:
+        super().__init__()
+        self.signals = self.Signals()
+        self.setAutoDelete(True)
+        self._embeddings = embeddings
+
+    def run(self) -> None:
+        try:
+            analyzer = CollectionAnalyzer()
+            result = analyzer.analyze(self._embeddings)
+            self.signals.result_ready.emit(result)
+        except Exception as exc:
+            logger.error("Collection analysis failed: %s", exc)
+            self.signals.error.emit(str(exc))
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -166,6 +215,22 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._generator = PointCloudGenerator()
 
+        # --- Phase 3 state ---
+        self._mapping_graph = MappingGraph()
+        self._mapping_engine = MappingEngine()
+        self._random_walk = RandomWalk()
+        self._dimensional_mapper = DimensionalMapper()
+        self._proposal_history = ProposalHistory()
+        self._animator = ParameterAnimator()
+        self._enrichment_service = EnrichmentService(
+            api_key=CLAUDE_API_KEY,
+            enabled=ENRICHMENT_ENABLED,
+        )
+        self._enrichment_enabled = ENRICHMENT_ENABLED
+        self._embedding_cloud_visible = False
+        self._current_proposal: dict[str, Any] | None = None
+        self._animation_start_time: float = 0.0
+
         # Central widget
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
@@ -197,6 +262,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.preset_panel = PresetPanel()
         self.export_panel = ExportPanel()
         self.library_panel = LibraryPanel()
+        self.discovery_panel = DiscoveryPanel()
 
         right_container = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right_container)
@@ -204,6 +270,7 @@ class MainWindow(QtWidgets.QMainWindow):
         right_layout.setSpacing(2)
         right_layout.addWidget(self.controls_panel)
         right_layout.addWidget(self.simulation_panel)
+        right_layout.addWidget(self.discovery_panel)
         right_layout.addWidget(self.postfx_panel)
         right_layout.addWidget(self.preset_panel)
         right_layout.addWidget(self.export_panel)
@@ -222,11 +289,57 @@ class MainWindow(QtWidgets.QMainWindow):
 
         main_layout.addWidget(h_splitter)
 
+        # --- Patch bay editor overlay (hidden by default) ---
+        self.patch_bay_editor = PatchBayEditor(self)
+        self.patch_bay_editor.setVisible(False)
+
         # --- Initialize post-processing effects ---
         self.viewport.init_postfx()
 
+        # --- Build menus ---
+        self._build_intelligence_menu()
+
         # --- Connect all signals ---
         self._connect_signals()
+
+    def _build_intelligence_menu(self) -> None:
+        """Create Intelligence menu with Phase 3 feature toggles."""
+        menu_bar = self.menuBar()
+
+        intelligence_menu = menu_bar.addMenu("Intelligence")
+
+        # Discovery mode toggle (Ctrl+D)
+        self._act_discovery = QtGui.QAction("Toggle Discovery Mode", self)
+        self._act_discovery.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_D))
+        self._act_discovery.setCheckable(True)
+        self._act_discovery.triggered.connect(self._on_toggle_discovery)
+        intelligence_menu.addAction(self._act_discovery)
+
+        # Feature mapping overlay (Ctrl+M)
+        self._act_mapping = QtGui.QAction("Open Feature Mapping", self)
+        self._act_mapping.setShortcut(QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_M))
+        self._act_mapping.triggered.connect(self._on_toggle_mapping_editor)
+        intelligence_menu.addAction(self._act_mapping)
+
+        intelligence_menu.addSeparator()
+
+        # Embedding cloud toggle (Ctrl+Shift+E to avoid conflict with export Ctrl+E)
+        self._act_cloud = QtGui.QAction("Toggle Embedding Cloud", self)
+        self._act_cloud.setShortcut(
+            QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.SHIFT | QtCore.Qt.Key_E)
+        )
+        self._act_cloud.setCheckable(True)
+        self._act_cloud.triggered.connect(self._on_toggle_embedding_cloud)
+        intelligence_menu.addAction(self._act_cloud)
+
+        intelligence_menu.addSeparator()
+
+        # Enhance with AI toggle
+        self._act_enrichment = QtGui.QAction("Enhance with AI", self)
+        self._act_enrichment.setCheckable(True)
+        self._act_enrichment.setChecked(self._enrichment_enabled)
+        self._act_enrichment.triggered.connect(self._on_toggle_enrichment)
+        intelligence_menu.addAction(self._act_enrichment)
 
     def _connect_signals(self) -> None:
         """Wire all inter-component signals."""
@@ -343,6 +456,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.preset_panel.save_current_requested.connect(
             self._on_save_current_preset
         )
+
+        # --- Phase 3: Discovery panel signals ---
+        self.discovery_panel.proposal_requested.connect(self._on_discovery_propose)
+        self.discovery_panel.proposal_applied.connect(self._on_discovery_apply)
+        self.discovery_panel.dimension_changed.connect(self._on_dimension_changed)
+
+        # --- Phase 3: Mapping editor signals ---
+        self.patch_bay_editor.mapping_changed.connect(self._on_mapping_changed)
+        self.patch_bay_editor.close_requested.connect(
+            lambda: self.patch_bay_editor.setVisible(False)
+        )
+
+        # --- Phase 3: Enrichment signals ---
+        self.feature_viewer.enrichment_requested.connect(self._on_enrichment_requested)
 
     # ------------------------------------------------------------------
     # Ingestion (load photo / folder)
@@ -462,6 +589,7 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.signals.progress.connect(self._on_extraction_progress)
         worker.signals.finished.connect(self._on_extraction_finished)
         worker.signals.error.connect(self._on_extraction_error)
+        worker.signals.batch_complete.connect(self._on_batch_extraction_complete)
 
         self._thread_pool.start(worker)
 
@@ -496,6 +624,7 @@ class MainWindow(QtWidgets.QMainWindow):
         worker.signals.progress.connect(self._on_extraction_progress)
         worker.signals.finished.connect(self._on_extraction_finished)
         worker.signals.error.connect(self._on_extraction_error)
+        worker.signals.batch_complete.connect(self._on_batch_extraction_complete)
 
         self._thread_pool.start(worker)
 
@@ -542,9 +671,57 @@ class MainWindow(QtWidgets.QMainWindow):
         self.viewport.auto_frame()
         logger.info("All extractions complete")
 
+        # Re-evaluate mapping graph with new feature data
+        self._evaluate_mapping_graph()
+
     def _on_extraction_error(self, photo_path: str, error_msg: str) -> None:
         """Log extraction errors."""
         logger.error("Extraction failed for %s: %s", photo_path, error_msg)
+
+    def _on_batch_extraction_complete(self, all_results: dict) -> None:
+        """Trigger collection analysis after all photos in batch are extracted.
+
+        Gathers CLIP embeddings from extraction results and runs
+        CollectionAnalyzer in a background worker.
+        """
+        embeddings: dict[str, np.ndarray] = {}
+        for path, features in all_results.items():
+            # Look for CLIP embeddings in the semantic/clip extractor results
+            for ext_name, result in features.items():
+                if hasattr(result, "data") and isinstance(result.data, dict):
+                    embedding = result.data.get("embedding")
+                    if embedding is not None and isinstance(embedding, np.ndarray):
+                        embeddings[path] = embedding
+                        break
+
+        if len(embeddings) < 2:
+            logger.info("Not enough embeddings for collection analysis (%d)", len(embeddings))
+            return
+
+        logger.info("Starting collection analysis with %d embeddings", len(embeddings))
+        worker = _CollectionAnalysisWorker(embeddings)
+        worker.signals.result_ready.connect(self._on_collection_analysis_complete)
+        worker.signals.error.connect(
+            lambda msg: logger.error("Collection analysis error: %s", msg)
+        )
+        self._thread_pool.start(worker)
+
+    def _on_collection_analysis_complete(self, result: object) -> None:
+        """Handle collection analysis results.
+
+        Update embedding cloud in viewport and set attractors in simulation.
+        """
+        self.viewport.update_embedding_cloud(result)
+
+        # Set force attractors in simulation if running
+        if self.viewport._sim_engine and hasattr(result, "cluster_positions_3d"):
+            attractors = []
+            for cluster_id, pos in result.cluster_positions_3d.items():
+                attractors.append((pos, 1.0))
+            if attractors:
+                self.viewport._sim_engine.set_attractors(attractors)
+
+        logger.info("Collection analysis complete: %d clusters", getattr(result, "n_clusters", 0))
 
     # ------------------------------------------------------------------
     # Layout regeneration
@@ -728,6 +905,7 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             self.viewport.start_simulation()
             self.simulation_panel.set_simulation_running(True)
+            self._animation_start_time = time.monotonic()
             logger.info("Simulation started with %d particles", positions.shape[0])
         except Exception as exc:
             logger.error("Failed to start simulation: %s", exc)
@@ -776,6 +954,179 @@ class MainWindow(QtWidgets.QMainWindow):
             self.simulation_panel.btn_pause.setText(
                 "Resume" if is_paused else "Pause"
             )
+
+    # ------------------------------------------------------------------
+    # Phase 3: Discovery mode
+    # ------------------------------------------------------------------
+
+    def _on_toggle_discovery(self, checked: bool) -> None:
+        """Toggle discovery mode via menu action."""
+        self.discovery_panel.btn_toggle.setChecked(checked)
+
+    def _on_dimension_changed(self, dim_name: str, value: float) -> None:
+        """Handle dimensional slider change in discovery panel."""
+        self._dimensional_mapper.set_dimension(dim_name, value)
+
+    def _on_discovery_propose(self) -> None:
+        """Generate a new parameter proposal using RandomWalk with dimensional constraints."""
+        constraints = self._dimensional_mapper.get_constraints()
+
+        current_params = None
+        if self.viewport._sim_engine:
+            current_params = self.viewport._sim_engine.params
+
+        proposal_params = self._random_walk.propose(
+            constraints=constraints,
+            current=current_params,
+        )
+
+        # Convert to dict for storage and display
+        from dataclasses import fields as dc_fields, asdict
+        param_dict: dict[str, Any] = {}
+        for f in dc_fields(proposal_params):
+            if not f.name.startswith("_") and f.name != "UNIFORM_SIZE":
+                val = getattr(proposal_params, f.name)
+                if isinstance(val, tuple):
+                    val = list(val)
+                param_dict[f.name] = val
+
+        self._current_proposal = param_dict
+
+        # Store in history with thumbnail
+        thumbnail = None
+        try:
+            # Capture viewport thumbnail for history strip
+            thumbnail = self.viewport.grab().scaled(
+                80, 60, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation
+            )
+        except Exception:
+            pass
+
+        proposal = Proposal(params=param_dict, thumbnail=thumbnail)
+        self._proposal_history.add(proposal)
+
+        # Update history strip in discovery panel
+        self.discovery_panel.history_strip.add_proposal(thumbnail)
+
+        logger.info("Discovery proposal generated with %d constrained params", len(constraints))
+
+    def _on_discovery_apply(self, _params: dict) -> None:
+        """Apply the current proposal to simulation parameters."""
+        if self._current_proposal is None:
+            logger.warning("No proposal to apply")
+            return
+
+        for name, value in self._current_proposal.items():
+            if name in ("gravity", "wind") and isinstance(value, list):
+                if self.viewport._sim_engine:
+                    self.viewport._sim_engine.update_physics_param(name, tuple(value))
+            elif isinstance(value, (int, float)):
+                self.viewport.update_sim_param(name, value)
+
+        logger.info("Discovery proposal applied")
+
+    # ------------------------------------------------------------------
+    # Phase 3: Feature-to-visual mapping
+    # ------------------------------------------------------------------
+
+    def _on_toggle_mapping_editor(self) -> None:
+        """Toggle the PatchBayEditor overlay visibility."""
+        visible = not self.patch_bay_editor.isVisible()
+        self.patch_bay_editor.setVisible(visible)
+        if visible:
+            # Resize overlay to fill the viewport area
+            self.patch_bay_editor.setGeometry(self.centralWidget().rect())
+            self.patch_bay_editor.raise_()
+
+    def _on_mapping_changed(self, graph: object) -> None:
+        """Handle mapping connection changes from the patch bay editor."""
+        if isinstance(graph, MappingGraph):
+            self._mapping_graph = graph
+            self._evaluate_mapping_graph()
+
+    def _evaluate_mapping_graph(self) -> None:
+        """Evaluate current mapping graph against latest feature data and apply results."""
+        if not self._mapping_graph.connections:
+            return
+        if not self._extraction_results:
+            return
+
+        # Use the first photo's features for evaluation (or selected)
+        features = None
+        if self._selected_photo and self._selected_photo in self._extraction_results:
+            features = self._extraction_results[self._selected_photo]
+        elif self._extraction_results:
+            features = next(iter(self._extraction_results.values()))
+
+        if features is None:
+            return
+
+        try:
+            updates = self._mapping_engine.evaluate(self._mapping_graph, features)
+            for name, value in updates.items():
+                self.viewport.update_sim_param(name, value)
+            logger.info("Mapping evaluation applied: %d params updated", len(updates))
+        except Exception as exc:
+            logger.warning("Mapping evaluation failed: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Phase 3: Embedding cloud
+    # ------------------------------------------------------------------
+
+    def _on_toggle_embedding_cloud(self, checked: bool) -> None:
+        """Toggle embedding cloud visibility in viewport."""
+        self._embedding_cloud_visible = checked
+        self.viewport.toggle_embedding_cloud()
+
+    # ------------------------------------------------------------------
+    # Phase 3: Enrichment service
+    # ------------------------------------------------------------------
+
+    def _on_toggle_enrichment(self, checked: bool) -> None:
+        """Toggle AI enrichment on/off."""
+        self._enrichment_enabled = checked
+        self._enrichment_service._enabled = checked
+        logger.info("Enrichment %s", "enabled" if checked else "disabled")
+
+    def _on_enrichment_requested(self, image_path: str, tags: list) -> None:
+        """Handle enrichment request from feature viewer.
+
+        Launches an EnrichmentWorker in background.
+        """
+        if not self._enrichment_enabled:
+            return
+
+        worker = EnrichmentWorker(
+            service=self._enrichment_service,
+            image_path=image_path,
+            basic_tags=tags,
+            mode="enrich",
+        )
+        worker.signals.enrichment_ready.connect(self.feature_viewer.set_enrichment)
+        worker.signals.error.connect(
+            lambda msg: logger.warning("Enrichment failed: %s", msg)
+        )
+        self._thread_pool.start(worker)
+
+    # ------------------------------------------------------------------
+    # Phase 3: Animation system
+    # ------------------------------------------------------------------
+
+    def tick_animation(self, elapsed: float) -> None:
+        """Tick the parameter animator (call from render loop if active).
+
+        Args:
+            elapsed: Seconds since animation start.
+        """
+        if not self._animator.bindings:
+            return
+        if self.viewport._sim_engine is None:
+            return
+
+        params = self.viewport._sim_engine.params
+        updated = self._animator.tick(elapsed, params)
+        if updated != params:
+            self.viewport._sim_engine.params = updated
 
     # ------------------------------------------------------------------
     # Project save/load
@@ -832,6 +1183,10 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception:
                 pass
 
+        # Phase 3 state
+        mapping_graph_dict = self._mapping_graph.to_dict() if self._mapping_graph.connections else None
+        discovery_dims = self.discovery_panel.get_dimension_values()
+
         return ProjectState(
             photo_paths=list(self._photo_paths),
             sim_params=sim_params,
@@ -842,6 +1197,9 @@ class MainWindow(QtWidgets.QMainWindow):
             multi_photo_mode=self.viewport.multi_photo_mode,
             depth_exaggeration=self._depth_exaggeration,
             point_cloud_snapshot=snapshot,
+            mapping_graph=mapping_graph_dict,
+            discovery_dimensions=discovery_dims,
+            enrichment_enabled=self._enrichment_enabled,
         )
 
     def _on_save_project(self) -> None:
@@ -938,6 +1296,22 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception as exc:
                 logger.warning("Failed to restore point cloud snapshot: %s", exc)
 
+        # Restore Phase 3 state
+        if state.mapping_graph:
+            try:
+                self._mapping_graph = MappingGraph.from_dict(state.mapping_graph)
+            except Exception as exc:
+                logger.warning("Failed to restore mapping graph: %s", exc)
+
+        if state.discovery_dimensions:
+            self.discovery_panel.set_dimension_values(state.discovery_dimensions)
+            for dim_name, value in state.discovery_dimensions.items():
+                self._dimensional_mapper.set_dimension(dim_name, value)
+
+        self._enrichment_enabled = state.enrichment_enabled
+        self._enrichment_service._enabled = state.enrichment_enabled
+        self._act_enrichment.setChecked(state.enrichment_enabled)
+
         logger.info("Project loaded from %s", path)
 
     # ------------------------------------------------------------------
@@ -1007,6 +1381,16 @@ class MainWindow(QtWidgets.QMainWindow):
             postfx_params[name] = self._prev_values.get(name, 0.0)
 
         self.preset_panel.save_preset_dialog(sim_params, postfx_params)
+
+    # ------------------------------------------------------------------
+    # Overlay resize handling
+    # ------------------------------------------------------------------
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:  # noqa: N802
+        """Resize the patch bay overlay when the window resizes."""
+        super().resizeEvent(event)
+        if self.patch_bay_editor.isVisible():
+            self.patch_bay_editor.setGeometry(self.centralWidget().rect())
 
     # ------------------------------------------------------------------
     # Legacy extraction API (kept for backward compatibility)

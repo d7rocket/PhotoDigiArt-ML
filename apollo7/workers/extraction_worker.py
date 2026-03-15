@@ -40,6 +40,10 @@ class WorkerSignals(QtCore.QObject):
     # Emitted when all photos are processed
     finished = QtCore.Signal()
 
+    # Emitted after finished with all accumulated extraction results
+    # dict[str, dict[str, ExtractionResult]]
+    batch_complete = QtCore.Signal(dict)
+
     # (photo_path, error_message)
     error = QtCore.Signal(str, str)
 
@@ -91,6 +95,8 @@ class ExtractionWorker(QtCore.QRunnable):
             self.signals.finished.emit()
             return
 
+        all_results: dict[str, dict] = {}
+
         for i, path in enumerate(self._photo_paths):
             try:
                 image = self._images.get(path)
@@ -101,6 +107,9 @@ class ExtractionWorker(QtCore.QRunnable):
 
                 # Run extraction pipeline (color first, then edges, then depth)
                 features = self._pipeline.run(image, path, cache=self._cache)
+
+                # Accumulate for batch_complete
+                all_results[path] = features
 
                 # Generate point cloud
                 kwargs: dict[str, Any] = {}
@@ -132,3 +141,7 @@ class ExtractionWorker(QtCore.QRunnable):
             self.signals.progress.emit(i + 1, total)
 
         self.signals.finished.emit()
+
+        # Emit batch_complete with all accumulated extraction results
+        if all_results:
+            self.signals.batch_complete.emit(all_results)
