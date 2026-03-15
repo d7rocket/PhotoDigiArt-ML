@@ -130,7 +130,6 @@ class TestEnrichedColors:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Plan 05-03: white background and tuning")
 def test_blend_alpha_configured():
     """_BLEND_ALPHA should be less than 0.7 for luminous overlap effect."""
     from apollo7.gui.widgets.viewport_widget import _BLEND_ALPHA
@@ -145,13 +144,15 @@ def test_blend_alpha_configured():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Plan 05-03: white background and tuning")
 def test_bloom_tuned_for_white():
-    """BLOOM_STRENGTH_DEFAULT should be higher than 0.04 for white bg."""
-    from apollo7.config.settings import BLOOM_STRENGTH_DEFAULT
+    """BLOOM_STRENGTH_DEFAULT should be >= 0.3 and filter radius >= 0.01 for white bg."""
+    from apollo7.config.settings import BLOOM_FILTER_RADIUS, BLOOM_STRENGTH_DEFAULT
 
-    assert BLOOM_STRENGTH_DEFAULT > 0.04, (
-        f"BLOOM_STRENGTH_DEFAULT should be > 0.04, got {BLOOM_STRENGTH_DEFAULT}"
+    assert BLOOM_STRENGTH_DEFAULT >= 0.3, (
+        f"BLOOM_STRENGTH_DEFAULT should be >= 0.3, got {BLOOM_STRENGTH_DEFAULT}"
+    )
+    assert BLOOM_FILTER_RADIUS >= 0.01, (
+        f"BLOOM_FILTER_RADIUS should be >= 0.01, got {BLOOM_FILTER_RADIUS}"
     )
 
 
@@ -160,12 +161,17 @@ def test_bloom_tuned_for_white():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Plan 05-03: white background and tuning")
 def test_white_background():
     """BG_COLOR_TOP and BG_COLOR_BOTTOM should be warm off-white."""
     from apollo7.config.settings import BG_COLOR_TOP, BG_COLOR_BOTTOM
 
     for name, color in [("BG_COLOR_TOP", BG_COLOR_TOP), ("BG_COLOR_BOTTOM", BG_COLOR_BOTTOM)]:
+        assert color.startswith("#F"), (
+            f"{name} should start with #F (light color), got {color}"
+        )
+        assert color != "#1a1a1a", (
+            f"{name} should not be dark default #1a1a1a"
+        )
         hex_val = color.lstrip("#")
         r, g, b = int(hex_val[:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
         brightness = (r + g + b) / 3
