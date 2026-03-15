@@ -3,6 +3,8 @@
 All values are module-level constants that serve as defaults.
 """
 
+import os
+
 # -- Point rendering defaults --
 POINT_SIZE_DEFAULT: float = 2.0
 POINT_SIZE_RANGE: tuple[float, float] = (0.5, 10.0)
@@ -95,3 +97,8 @@ DEFAULT_PRESETS_DIR: str = "~/.apollo7/presets/"
 
 # -- Export resolution presets --
 EXPORT_MAX_RESOLUTION: int = 15360
+
+# -- Claude API enrichment (optional, offline-first) --
+CLAUDE_API_KEY: str | None = os.environ.get("APOLLO7_CLAUDE_API_KEY", None)
+ENRICHMENT_ENABLED: bool = False
+CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
