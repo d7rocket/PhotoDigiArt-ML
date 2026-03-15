@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: in-progress
-stopped_at: Completed 05-02 depth and color enrichment
-last_updated: "2026-03-15T16:05:08Z"
-last_activity: 2026-03-15 -- CLAHE depth enhancement and color enrichment (05-02)
+stopped_at: Completed 05-03 white background tuning
+last_updated: "2026-03-15T16:12:00Z"
+last_activity: 2026-03-15 -- White background tuning and luminous blending (05-03)
 progress:
   total_phases: 6
   completed_phases: 4
   total_plans: 29
-  completed_plans: 27
-  percent: 93
+  completed_plans: 28
+  percent: 97
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 5 of 6 (Visual Quality)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: In Progress
-Last activity: 2026-03-15 -- CLAHE depth enhancement and color enrichment (05-02)
+Last activity: 2026-03-15 -- White background tuning and luminous blending (05-03)
 
-Progress: [█████████▌] 93% (v2.0)
+Progress: [██████████] 97% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7 (v2.0)
-- Average duration: 4.4min
-- Total execution time: 31min
+- Total plans completed: 8 (v2.0)
+- Average duration: 4.3min
+- Total execution time: 34min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -48,6 +48,7 @@ Progress: [█████████▌] 93% (v2.0)
 | 04    | 05   | 3min     | 2     | 5     |
 | 05    | 01   | 5min     | 2     | 4     |
 | 05    | 02   | 5min     | 2     | 6     |
+| 05    | 03   | 3min     | 2     | 4     |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [05-01]: Lazy pipeline creation for extract shader (built on first dispatch)
 - [05-01]: CPU readback fallback preserved for safety if GPU sharing fails
 - [05-01]: Color buffer gets VERTEX flag directly (no extract shader needed)
+- [05-03]: Warm off-white #F8F6F3 (gallery art paper, not pure white)
+- [05-03]: Bloom strength 0.5 with filter_radius 0.015 and Karis averaging for colored halos
+- [05-03]: Blend alpha 0.45 for luminous cluster overlap
 
 ### Pending Todos
 
@@ -95,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-15T16:05:08Z
-Stopped at: Completed 05-02 depth and color enrichment
-Resume file: .planning/phases/05-visual-quality/05-03-PLAN.md
+Last session: 2026-03-15T16:12:00Z
+Stopped at: Completed 05-03 white background tuning
+Resume file: .planning/phases/05-visual-quality/05-04-PLAN.md

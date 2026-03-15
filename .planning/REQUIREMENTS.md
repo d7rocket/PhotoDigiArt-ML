@@ -57,10 +57,10 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
 ### Rendering Quality
 
-- [ ] **REND-01**: Particles render as round, soft points instead of hard squares
-- [ ] **REND-02**: Viewport uses white background by default
-- [ ] **REND-03**: Additive blending creates luminous, glowing particle clusters
-- [ ] **REND-04**: Bloom/glow post-processing enhances particle aesthetics
+- [x] **REND-01**: Particles render as round, soft points instead of hard squares
+- [x] **REND-02**: Viewport uses white background by default
+- [x] **REND-03**: Additive blending creates luminous, glowing particle clusters
+- [x] **REND-04**: Bloom/glow post-processing enhances particle aesthetics
 - [x] **REND-05**: GPU buffer sharing eliminates CPU readback bottleneck for 1M+ particles
 - [ ] **REND-06**: Parameter changes crossfade smoothly instead of popping
 
@@ -128,10 +128,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PHYS-07 | Phase 4 | Complete |
 | PHYS-08 | Phase 4 | Complete |
 | PHYS-09 | Phase 4 | Complete |
-| REND-01 | Phase 5 | Pending |
-| REND-02 | Phase 5 | Pending |
-| REND-03 | Phase 5 | Pending |
-| REND-04 | Phase 5 | Pending |
+| REND-01 | Phase 5 | Complete |
+| REND-02 | Phase 5 | Complete |
+| REND-03 | Phase 5 | Complete |
+| REND-04 | Phase 5 | Complete |
 | REND-05 | Phase 5 | Complete |
 | REND-06 | Phase 5 | Pending |
 | DPTH-01 | Phase 5 | Complete |
