@@ -102,6 +102,11 @@ class ViewportWidget(QtWidgets.QWidget):
         self._sim_engine = None
         self._sim_cloud: gfx.Points | None = None  # merged cloud driven by sim
 
+        # GPU buffer sharing (None until sim initialized)
+        self._shared_pos_buf: gfx.Buffer | None = None
+        self._shared_color_buf: gfx.Buffer | None = None
+        self._gpu_sharing_active: bool = False
+
         # Embedding cloud manager (None until collection analysis runs)
         self._embedding_cloud_manager = None
 
@@ -388,6 +393,10 @@ class ViewportWidget(QtWidgets.QWidget):
             if self._sim_cloud in self._point_objects:
                 self._point_objects.remove(self._sim_cloud)
             self._sim_cloud = None
+        # Clean up shared GPU buffers
+        self._shared_pos_buf = None
+        self._shared_color_buf = None
+        self._gpu_sharing_active = False
         # Restore photo cloud visibility
         for pts in self._photo_clouds.values():
             pts.visible = True
@@ -425,6 +434,9 @@ class ViewportWidget(QtWidgets.QWidget):
         device = self._renderer.device
         self._sim_engine = SimulationEngine(device)
         self._sim_engine.initialize(positions, colors, feature_textures)
+
+        # Set up GPU buffer sharing for zero-copy rendering
+        self._setup_gpu_buffer_sharing(len(positions))
         logger.info("Simulation initialized with %d particles", positions.shape[0])
 
     def start_simulation(self) -> None:
@@ -486,15 +498,76 @@ class ViewportWidget(QtWidgets.QWidget):
         else:
             logger.warning("Unknown simulation param: %s", name)
 
-    def _update_points_from_sim(self) -> None:
-        """Read particle positions from GPU and update pygfx geometry.
+    def _setup_gpu_buffer_sharing(self, n_particles: int) -> None:
+        """Set up zero-copy GPU buffer sharing between simulation and pygfx.
 
-        Falls back to CPU readback + re-upload for prototype compatibility.
-        Direct buffer sharing can be optimized later.
+        Creates pygfx Buffer shells and injects the wgpu buffer objects
+        from ParticleBuffer, avoiding CPU readback entirely.
+
+        Args:
+            n_particles: Number of particles for buffer sizing.
+        """
+        try:
+            pb = self._sim_engine._particle_buffer
+
+            # Create pygfx Buffer shell for positions (vec4<f32> per particle)
+            self._shared_pos_buf = gfx.Buffer(
+                np.zeros((n_particles, 4), dtype=np.float32)
+            )
+            # Inject the wgpu render positions buffer
+            self._shared_pos_buf._wgpu_object = pb.render_positions_buffer
+
+            # Create pygfx Buffer shell for colors (vec4<f32> per particle)
+            self._shared_color_buf = gfx.Buffer(
+                np.zeros((n_particles, 4), dtype=np.float32)
+            )
+            # Inject the wgpu color buffer directly
+            self._shared_color_buf._wgpu_object = pb.color_buffer
+
+            # Assign shared buffers to sim cloud geometry
+            geo = self._sim_cloud.geometry
+            geo.positions = self._shared_pos_buf
+            geo.colors = self._shared_color_buf
+
+            self._gpu_sharing_active = True
+            logger.info(
+                "GPU buffer sharing active: %d particles, zero-copy rendering",
+                n_particles,
+            )
+        except Exception as exc:
+            self._gpu_sharing_active = False
+            logger.warning(
+                "GPU buffer sharing setup failed, falling back to CPU readback: %s",
+                exc,
+            )
+
+    def _update_points_from_sim(self) -> None:
+        """Update pygfx geometry from simulation GPU buffers.
+
+        Primary path: GPU buffer sharing via extract_positions compute shader.
+        Fallback: CPU readback + re-upload (prototype compatibility).
         """
         if self._sim_engine is None or self._sim_cloud is None:
             return
 
+        if self._gpu_sharing_active:
+            try:
+                # Dispatch extract-positions shader (GPU -> GPU, no readback)
+                pb = self._sim_engine._particle_buffer
+                pb.extract_positions_to_render(self._sim_engine._device)
+
+                # Tell pygfx the buffer content changed (triggers re-render)
+                if self._shared_pos_buf is not None:
+                    self._shared_pos_buf.update_range(0, 0)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "GPU buffer sharing failed, falling back to CPU readback: %s",
+                    exc,
+                )
+                self._gpu_sharing_active = False
+
+        # Fallback: CPU readback path
         try:
             positions = self._sim_engine._particle_buffer.read_positions()
             geo = self._sim_cloud.geometry
