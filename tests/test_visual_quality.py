@@ -10,6 +10,7 @@ Covers:
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 
@@ -73,10 +74,35 @@ def test_color_buffer_has_vertex_flag():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skip(reason="Plan 05-02: color palette tuning")
-def test_saturation_boost():
-    """Color extraction applies saturation boost in 1.2-1.4 range."""
-    pass
+class TestEnrichedColors:
+    """Tests for extract_enriched_colors with saturation boost (Plan 05-02)."""
+
+    @pytest.mark.skip(reason="Plan 05-02: color palette tuning")
+    def test_saturation_boost(self):
+        """Saturation is boosted by the specified factor, clamped to valid range."""
+        from apollo7.extraction.color import extract_enriched_colors
+
+        # Create an image with known HSV saturation
+        h, w = 32, 32
+        image = np.zeros((h, w, 3), dtype=np.float32)
+        image[:, :, 0] = 200.0 / 255.0
+        image[:, :, 1] = 100.0 / 255.0
+        image[:, :, 2] = 50.0 / 255.0
+
+        boost = 1.3
+        result = extract_enriched_colors(image, saturation_boost=boost)
+        assert result.dtype == np.float32
+
+    @pytest.mark.skip(reason="Plan 05-02: color palette tuning")
+    def test_enriched_colors_shape(self):
+        """Output is (H, W, 4) float32 RGBA."""
+        from apollo7.extraction.color import extract_enriched_colors
+
+        h, w = 48, 64
+        image = np.random.rand(h, w, 3).astype(np.float32)
+        result = extract_enriched_colors(image)
+        assert result.shape == (h, w, 4)
+        assert result.dtype == np.float32
 
 
 # ---------------------------------------------------------------------------
@@ -119,9 +145,7 @@ def test_white_background():
     """BG_COLOR_TOP and BG_COLOR_BOTTOM should be warm off-white."""
     from apollo7.config.settings import BG_COLOR_TOP, BG_COLOR_BOTTOM
 
-    # These should be light warm colors, not dark (#1a1a1a)
     for name, color in [("BG_COLOR_TOP", BG_COLOR_TOP), ("BG_COLOR_BOTTOM", BG_COLOR_BOTTOM)]:
-        # Parse hex color and check brightness
         hex_val = color.lstrip("#")
         r, g, b = int(hex_val[:2], 16), int(hex_val[2:4], 16), int(hex_val[4:6], 16)
         brightness = (r + g + b) / 3
