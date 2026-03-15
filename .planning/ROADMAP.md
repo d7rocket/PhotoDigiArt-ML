@@ -45,7 +45,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Milestone Goal:** Transform the rough v1.0 prototype into a product that produces organic, living data sculptures -- fix physics so particles form coherent shapes, make rendering gallery-quality, polish the UI, and let Claude drive creative direction.
 
 - [x] **Phase 4: Stable Physics** - PBF solver, home positions, force balance, and organic motion forces (completed 2026-03-15)
-- [ ] **Phase 5: Visual Quality** - Gallery-quality rendering, GPU performance, smooth transitions, and depth map fixes
+- [x] **Phase 5: Visual Quality** - Gallery-quality rendering, GPU performance, smooth transitions, and depth map fixes (completed 2026-03-15)
 - [ ] **Phase 6: Interface and Intelligence** - Polished UI rework and Claude-driven creative direction
 
 ## Phase Details
@@ -79,13 +79,13 @@ Plans:
   3. Changing any simulation or visual parameter crossfades smoothly over ~0.5 seconds instead of popping instantly
   4. Rendering sustains 60fps at 1M+ particles by sharing GPU buffers directly between compute and render (no CPU readback)
   5. Depth maps extracted from photos show full contrast and color saturation via CLAHE post-processing
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
-- [ ] 05-01-PLAN.md -- GPU buffer sharing: extract-positions shader and zero-copy render
-- [ ] 05-02-PLAN.md -- CLAHE depth enhancement and enriched color extraction
-- [ ] 05-03-PLAN.md -- White background, luminous alpha, and bloom retuning
-- [ ] 05-04-PLAN.md -- Crossfade engine and visual verification checkpoint
+- [x] 05-01-PLAN.md -- GPU buffer sharing: extract-positions shader and zero-copy render
+- [x] 05-02-PLAN.md -- CLAHE depth enhancement and enriched color extraction
+- [x] 05-03-PLAN.md -- White background, luminous alpha, and bloom retuning
+- [x] 05-04-PLAN.md -- Crossfade engine and visual verification checkpoint
 
 ### Phase 6: Interface and Intelligence
 **Goal**: The application looks and feels polished with logical controls, and Claude can analyze photos to suggest parameter sets that produce compelling sculptures
@@ -110,5 +110,5 @@ Phases execute in numeric order: 4 -> 5 -> 6
 | 2. Creative Sculpting | v1.0 | 8/8 | Complete | 2026-03-14 |
 | 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
 | 4. Stable Physics | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
-| 5. Visual Quality | 3/4 | In Progress|  | - |
+| 5. Visual Quality | v2.0 | 4/4 | Complete | 2026-03-15 |
 | 6. Interface and Intelligence | v2.0 | 0/TBD | Not started | - |

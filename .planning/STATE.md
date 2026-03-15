@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: in-progress
-stopped_at: Completed 05-04 crossfade engine (awaiting visual verification)
-last_updated: "2026-03-15T16:20:35Z"
-last_activity: 2026-03-15 -- Crossfade engine with ease-out interpolation (05-04)
+stopped_at: Completed Phase 5 Visual Quality (all 4 plans done)
+last_updated: "2026-03-15T17:15:00Z"
+last_activity: 2026-03-15 -- Phase 5 complete: crossfade engine verified and rendering fixes applied (05-04)
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 29
   completed_plans: 29
   percent: 100
@@ -25,19 +25,19 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 
 ## Current Position
 
-Phase: 5 of 6 (Visual Quality)
-Plan: 4 of 4 in current phase
-Status: Checkpoint (visual verification)
-Last activity: 2026-03-15 -- Crossfade engine with ease-out interpolation (05-04)
+Phase: 5 of 6 (Visual Quality) -- COMPLETE
+Plan: 4 of 4 in current phase (all done)
+Status: Phase 5 complete, ready for Phase 6
+Last activity: 2026-03-15 -- Phase 5 complete: crossfade engine verified and rendering fixes applied (05-04)
 
 Progress: [██████████] 100% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8 (v2.0)
-- Average duration: 4.3min
-- Total execution time: 34min
+- Total plans completed: 9 (v2.0)
+- Average duration: 4.4min
+- Total execution time: 42min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -49,7 +49,7 @@ Progress: [██████████] 100% (v2.0)
 | 05    | 01   | 5min     | 2     | 4     |
 | 05    | 02   | 5min     | 2     | 6     |
 | 05    | 03   | 3min     | 2     | 4     |
-| 05    | 04   | 4min     | 2     | 4     |
+| 05    | 04   | 8min     | 3     | 5     |
 
 ## Accumulated Context
 
@@ -89,6 +89,9 @@ Recent decisions affecting current work:
 - [05-04]: Cubic ease-out 1-(1-t)^3 for iOS-like parameter crossfade
 - [05-04]: 400ms transition duration (middle of 300-500ms user range)
 - [05-04]: A/B preset crossfade uses same CrossfadeEngine for unified behavior
+- [05-04]: GPU buffer sharing disabled -- pygfx vec3/vec4 mismatch; CPU readback fallback active
+- [05-04]: Bloom disabled on white background (washes out particles)
+- [05-04]: Saturation boost 1.8, alpha 0.92 for vibrant colors on white background
 
 ### Pending Todos
 
@@ -97,12 +100,12 @@ None yet.
 ### Blockers/Concerns
 
 - AMD RDNA 4 compute driver maturity -- test PBF solver on target hardware immediately after implementation
-- GPU buffer sharing between wgpu compute and pygfx render -- RESOLVED: _wgpu_object injection works (HIGH confidence)
+- GPU buffer sharing between wgpu compute and pygfx render -- RESOLVED: disabled due to vec3/vec4 mismatch, CPU readback fallback active
 - PBF tuning for artistic vs. physically accurate results -- needs experimentation
 - GUI references to set_performance_mode need updating (deferred from 04-03)
 
 ## Session Continuity
 
-Last session: 2026-03-15T16:20:35Z
-Stopped at: Completed 05-04 crossfade engine (awaiting visual verification checkpoint)
-Resume file: .planning/phases/05-visual-quality/05-04-PLAN.md (Task 3: visual verification)
+Last session: 2026-03-15T17:15:00Z
+Stopped at: Completed Phase 5 Visual Quality (all 4 plans done, verified)
+Resume file: Phase 6 planning needed
