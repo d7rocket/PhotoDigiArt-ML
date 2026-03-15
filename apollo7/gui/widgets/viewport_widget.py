@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 # pygfx PointsGaussianBlobMaterial does NOT expose a blend_mode parameter.
 # Workaround: alpha < 1.0 combined with Gaussian blob falloff.
 BLEND_MODE_AVAILABLE: bool = False
-_BLEND_ALPHA: float = 0.85
+_BLEND_ALPHA: float = 0.92
 
 # Signal emitted when layout regeneration is needed (connected by MainWindow)
 _LAYOUT_CHANGE_SIGNAL_NAME = "layout_change_requested"
