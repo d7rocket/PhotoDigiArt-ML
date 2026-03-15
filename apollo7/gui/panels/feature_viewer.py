@@ -2,7 +2,8 @@
 
 Displays color palette with swatches and hex values, edge map as full-width
 image with stats, depth map as blue-to-yellow heatmap with min/max/mean
-statistics, and semantic tags as colored pills with confidence scores.
+statistics, semantic tags as colored pills with confidence scores, and
+optional AI enrichment (artistic descriptions and sculpting suggestions).
 Each section is collapsible.
 """
 
@@ -14,6 +15,7 @@ import numpy as np
 from PySide6 import QtCore, QtGui, QtWidgets
 
 if TYPE_CHECKING:
+    from apollo7.api.enrichment import EnrichmentResult
     from apollo7.extraction.base import ExtractionResult
 
 # ---------------------------------------------------------------------------
@@ -28,6 +30,8 @@ _TEXT_SECONDARY = "#808080"
 _TEXT_DIM = "#555555"
 _SWATCH_SIZE = 28
 _STAT_STYLE = "color: #888; font-size: 11px;"
+_ENRICHMENT_DESC_COLOR = "#DDCCAA"
+_ENRICHMENT_SUGGEST_COLOR = "#0078FF"
 
 
 class _Section(QtWidgets.QWidget):
@@ -306,6 +310,10 @@ class _FlowLayout(QtWidgets.QLayout):
 class FeatureViewerPanel(QtWidgets.QWidget):
     """Scrollable panel showing all extracted features for the selected photo."""
 
+    # Signal emitted when user toggles enrichment on for a photo
+    # Args: (image_path: str, basic_tags: list[tuple[str, float]])
+    enrichment_requested = QtCore.Signal(str, list)
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("feature-viewer")
@@ -344,12 +352,31 @@ class FeatureViewerPanel(QtWidgets.QWidget):
 
         self._sections: list[QtWidgets.QWidget] = []
 
+        # Enrichment state
+        self._enrichment_enabled = False
+        self._enrichment_result: "EnrichmentResult | None" = None
+        self._enrichment_toggle: QtWidgets.QPushButton | None = None
+        self._enrichment_container: QtWidgets.QWidget | None = None
+        self._current_photo_path: str | None = None
+        self._current_basic_tags: list[tuple[str, float]] = []
+
     def update_features(
         self, photo_path: str, features: dict[str, "ExtractionResult"]
     ) -> None:
         """Populate all sections from extraction results."""
         self._clear_sections()
         self._placeholder.hide()
+        self._current_photo_path = photo_path
+        self._enrichment_result = None  # Reset enrichment for new photo
+
+        # Collect basic tags for enrichment requests
+        semantic = features.get("semantic")
+        if semantic is not None:
+            mood = semantic.data.get("mood_tags", [])
+            obj = semantic.data.get("object_tags", [])
+            self._current_basic_tags = list(mood) + list(obj)
+        else:
+            self._current_basic_tags = []
 
         # Color palette section
         self._build_color_section(features.get("color"))
@@ -360,8 +387,8 @@ class FeatureViewerPanel(QtWidgets.QWidget):
         # Depth map section
         self._build_depth_section(features.get("depth"))
 
-        # Semantic tags section
-        self._build_semantic_section(features.get("semantic"))
+        # Semantic tags section (includes enrichment toggle)
+        self._build_semantic_section(semantic)
 
         self._content_layout.addStretch()
 
@@ -369,6 +396,17 @@ class FeatureViewerPanel(QtWidgets.QWidget):
         """Reset to empty state with placeholder message."""
         self._clear_sections()
         self._placeholder.show()
+        self._enrichment_result = None
+        self._current_photo_path = None
+        self._current_basic_tags = []
+
+    def set_enrichment(self, result: "EnrichmentResult") -> None:
+        """Update the enrichment display with API results.
+
+        Called by MainWindow when EnrichmentWorker delivers results.
+        """
+        self._enrichment_result = result
+        self._update_enrichment_display()
 
     def _clear_sections(self) -> None:
         """Remove all section widgets."""
@@ -592,7 +630,163 @@ class FeatureViewerPanel(QtWidgets.QWidget):
             lbl.setStyleSheet(f"color: {_TEXT_DIM}; font-size: 11px; border: none;")
             layout.addWidget(lbl)
 
+        # --- Enrichment toggle and display ---
+        self._build_enrichment_subsection(layout)
+
         self._add_section(section)
+
+    def _build_enrichment_subsection(self, parent_layout: QtWidgets.QVBoxLayout) -> None:
+        """Build the 'Enhance with AI' toggle and enrichment display area."""
+        # Separator
+        sep = QtWidgets.QFrame()
+        sep.setFrameShape(QtWidgets.QFrame.HLine)
+        sep.setStyleSheet(f"color: {_BORDER}; border: none; background: {_BORDER}; max-height: 1px;")
+        parent_layout.addWidget(sep)
+
+        # Toggle button styled as pill/chip
+        self._enrichment_toggle = QtWidgets.QPushButton("Enhance with AI")
+        self._enrichment_toggle.setCheckable(True)
+        self._enrichment_toggle.setChecked(self._enrichment_enabled)
+        self._enrichment_toggle.setFixedHeight(26)
+        self._enrichment_toggle.setCursor(QtCore.Qt.PointingHandCursor)
+        self._update_toggle_style()
+        self._enrichment_toggle.toggled.connect(self._on_enrichment_toggled)
+        parent_layout.addWidget(self._enrichment_toggle)
+
+        # Enrichment content container (hidden by default)
+        self._enrichment_container = QtWidgets.QWidget()
+        self._enrichment_container.setStyleSheet("border: none;")
+        enrichment_layout = QtWidgets.QVBoxLayout(self._enrichment_container)
+        enrichment_layout.setContentsMargins(0, 4, 0, 0)
+        enrichment_layout.setSpacing(6)
+
+        # Loading label (shown when waiting for API)
+        self._enrichment_loading = QtWidgets.QLabel("Fetching AI enrichment...")
+        self._enrichment_loading.setStyleSheet(
+            f"color: {_TEXT_DIM}; font-size: 11px; font-style: italic; border: none;"
+        )
+        self._enrichment_loading.setAlignment(QtCore.Qt.AlignLeft)
+        enrichment_layout.addWidget(self._enrichment_loading)
+
+        # Description label (artistic mood description)
+        self._enrichment_desc = QtWidgets.QLabel()
+        self._enrichment_desc.setWordWrap(True)
+        self._enrichment_desc.setStyleSheet(
+            f"color: {_ENRICHMENT_DESC_COLOR}; font-size: 12px; font-style: italic; "
+            f"border: none; padding: 4px 0;"
+        )
+        self._enrichment_desc.hide()
+        enrichment_layout.addWidget(self._enrichment_desc)
+
+        # Suggestion label (sculpting suggestion)
+        self._enrichment_suggest = QtWidgets.QLabel()
+        self._enrichment_suggest.setWordWrap(True)
+        self._enrichment_suggest.setStyleSheet(
+            f"color: {_ENRICHMENT_SUGGEST_COLOR}; font-size: 11px; border: none; padding: 2px 0;"
+        )
+        self._enrichment_suggest.hide()
+        enrichment_layout.addWidget(self._enrichment_suggest)
+
+        parent_layout.addWidget(self._enrichment_container)
+
+        # Show/hide based on current toggle state
+        if self._enrichment_enabled:
+            self._enrichment_container.show()
+            self._update_enrichment_display()
+        else:
+            self._enrichment_container.hide()
+
+    def _update_toggle_style(self) -> None:
+        """Update toggle button styling based on checked state."""
+        if self._enrichment_toggle is None:
+            return
+        if self._enrichment_toggle.isChecked():
+            self._enrichment_toggle.setText("AI Enhanced")
+            self._enrichment_toggle.setStyleSheet(f"""
+                QPushButton {{
+                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                        stop:0 #1a2a4a, stop:1 #2a3a5a);
+                    color: {_ENRICHMENT_DESC_COLOR};
+                    border: 1px solid #4466AA;
+                    border-radius: 13px;
+                    padding: 4px 16px;
+                    font-size: 11px;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{
+                    border-color: #5577BB;
+                }}
+            """)
+        else:
+            self._enrichment_toggle.setText("Enhance with AI")
+            self._enrichment_toggle.setStyleSheet(f"""
+                QPushButton {{
+                    background: #2a2a2a;
+                    color: {_TEXT_DIM};
+                    border: 1px solid {_BORDER};
+                    border-radius: 13px;
+                    padding: 4px 16px;
+                    font-size: 11px;
+                }}
+                QPushButton:hover {{
+                    color: {_TEXT_SECONDARY};
+                    border-color: #555555;
+                }}
+            """)
+
+    def _on_enrichment_toggled(self, checked: bool) -> None:
+        """Handle enrichment toggle state change."""
+        self._enrichment_enabled = checked
+        self._update_toggle_style()
+
+        if self._enrichment_container is not None:
+            if checked:
+                self._enrichment_container.show()
+                if self._enrichment_result is None and self._current_photo_path:
+                    # Request enrichment from API
+                    self._enrichment_loading.show()
+                    self._enrichment_desc.hide()
+                    self._enrichment_suggest.hide()
+                    self.enrichment_requested.emit(
+                        self._current_photo_path, self._current_basic_tags
+                    )
+                else:
+                    self._update_enrichment_display()
+            else:
+                self._enrichment_container.hide()
+
+    def _update_enrichment_display(self) -> None:
+        """Update the enrichment content based on current result."""
+        if self._enrichment_container is None:
+            return
+
+        if not self._enrichment_enabled:
+            return
+
+        if self._enrichment_result is None:
+            # Still loading or no result
+            self._enrichment_loading.show()
+            self._enrichment_desc.hide()
+            self._enrichment_suggest.hide()
+            return
+
+        # Hide loading, show results
+        self._enrichment_loading.hide()
+
+        if self._enrichment_result.description:
+            self._enrichment_desc.setText(self._enrichment_result.description)
+            self._enrichment_desc.show()
+        else:
+            self._enrichment_desc.hide()
+
+        if self._enrichment_result.suggestion:
+            # Prefix with lightbulb unicode
+            self._enrichment_suggest.setText(
+                f"\U0001f4a1 {self._enrichment_result.suggestion}"
+            )
+            self._enrichment_suggest.show()
+        else:
+            self._enrichment_suggest.hide()
 
     # ------------------------------------------------------------------
     # Helpers
