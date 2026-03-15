@@ -23,7 +23,7 @@ class SimulationParams:
       vec4: gas_constant, speed, dt, damping
       vec4: gravity.xyz, _pad0
       vec4: wind.xyz, _pad1
-      vec4: time, sph_enabled, performance_mode, _pad2
+      vec4: time, sph_enabled, performance_mode, attractor_global_strength
     Total: 7 * 16 = 112 bytes
     """
 
@@ -55,6 +55,9 @@ class SimulationParams:
     gravity: tuple[float, float, float] = (0.0, -0.1, 0.0)
     wind: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
+    # -- Collection attractors --
+    attractor_global_strength: float = 0.5
+
     # -- Runtime state (not user-tunable, but part of uniform) --
     time: float = 0.0
     sph_enabled: float = 1.0
@@ -82,6 +85,7 @@ class SimulationParams:
             "smoothing_radius",
             "rest_density",
             "gas_constant",
+            "attractor_global_strength",
         },
         repr=False,
         compare=False,
@@ -106,7 +110,7 @@ class SimulationParams:
           [48..63]  gas_constant, speed, dt, damping
           [64..79]  gravity.x, gravity.y, gravity.z, 0.0
           [80..95]  wind.x, wind.y, wind.z, 0.0
-          [96..111] time, sph_enabled, performance_mode, 0.0
+          [96..111] time, sph_enabled, performance_mode, attractor_global_strength
 
         Returns:
             bytes of length UNIFORM_SIZE (112).
@@ -142,11 +146,11 @@ class SimulationParams:
             self.wind[1],
             self.wind[2],
             0.0,
-            # vec4 6: runtime state + pad
+            # vec4 6: runtime state + attractor strength
             self.time,
             self.sph_enabled,
             self.performance_mode,
-            0.0,
+            self.attractor_global_strength,
         ]
         return struct.pack(f"<{len(values)}f", *values)
 
@@ -175,6 +179,7 @@ class SimulationParams:
             "smoothing_radius",
             "rest_density",
             "gas_constant",
+            "attractor_global_strength",
         }
 
     @classmethod

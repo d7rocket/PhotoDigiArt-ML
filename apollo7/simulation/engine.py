@@ -104,6 +104,11 @@ class SimulationEngine:
         self._sph_bgl = None
         self._sph_bind_group = None
 
+        # Attractor data (from collection analysis)
+        self._attractors: list[tuple[np.ndarray, float]] = []
+        self._attractor_buffer = None  # GPU buffer for attractor vec4 data
+        self._max_attractors = 16
+
         logger.info("SimulationEngine created")
 
     def initialize(
@@ -566,6 +571,61 @@ class SimulationEngine:
                 },
             ],
         )
+
+    def set_attractors(
+        self, attractors: list[tuple[np.ndarray, float]]
+    ) -> None:
+        """Set force attractor positions and weights from collection analysis.
+
+        Creates a GPU buffer containing attractor data packed as vec4
+        (x, y, z, weight) per attractor, padded to max_attractors.
+
+        Args:
+            attractors: List of (3D position, weight) tuples from
+                CollectionAnalyzer.get_force_attractors().
+        """
+        import wgpu
+
+        self._attractors = attractors[:self._max_attractors]
+
+        # Pack attractor data as vec4 array (position.xyz + weight)
+        data = np.zeros((self._max_attractors, 4), dtype=np.float32)
+        for i, (pos, weight) in enumerate(self._attractors):
+            data[i, :3] = pos
+            data[i, 3] = weight
+
+        # Create or update GPU buffer
+        buffer_size = data.nbytes
+        if self._attractor_buffer is None:
+            self._attractor_buffer = self._device.create_buffer(
+                size=buffer_size,
+                usage=(
+                    wgpu.BufferUsage.STORAGE
+                    | wgpu.BufferUsage.COPY_DST
+                ),
+            )
+
+        self._device.queue.write_buffer(
+            self._attractor_buffer, 0, data.tobytes()
+        )
+        logger.info(
+            "Set %d attractors (max %d)",
+            len(self._attractors),
+            self._max_attractors,
+        )
+
+    def clear_attractors(self) -> None:
+        """Remove all force attractors."""
+        self._attractors = []
+        if self._attractor_buffer is not None:
+            # Zero out the buffer
+            data = np.zeros(
+                (self._max_attractors, 4), dtype=np.float32
+            )
+            self._device.queue.write_buffer(
+                self._attractor_buffer, 0, data.tobytes()
+            )
+        logger.info("Attractors cleared")
 
     def step(self) -> None:
         """Execute one simulation frame (all compute passes).
