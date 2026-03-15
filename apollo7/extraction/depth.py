@@ -15,6 +15,41 @@ from apollo7.extraction.base import BaseExtractor, ExtractionResult
 
 logger = logging.getLogger(__name__)
 
+
+def enhance_depth_clahe(
+    depth_raw: np.ndarray,
+    clip_limit: float = 3.0,
+    tile_size: int = 8,
+) -> np.ndarray:
+    """Apply CLAHE to raw depth map for full contrast stretch.
+
+    Converts flat pancake-layer depth into continuous volume by
+    enhancing local contrast with adaptive histogram equalization.
+
+    Args:
+        depth_raw: H x W float32 depth map (arbitrary range).
+        clip_limit: CLAHE clip limit for contrast limiting.
+        tile_size: Tile grid size for local histogram regions.
+
+    Returns:
+        H x W float32 depth map normalized to [0, 1].
+    """
+    # Scale to uint8 for CLAHE (operates on integer histograms)
+    d_min, d_max = float(depth_raw.min()), float(depth_raw.max())
+    if d_max - d_min < 1e-8:
+        return np.zeros_like(depth_raw, dtype=np.float32)
+    depth_uint8 = ((depth_raw - d_min) / (d_max - d_min) * 255).astype(np.uint8)
+
+    # Apply CLAHE
+    clahe = cv2.createCLAHE(
+        clipLimit=clip_limit, tileGridSize=(tile_size, tile_size)
+    )
+    enhanced = clahe.apply(depth_uint8)
+
+    # Back to float32 [0, 1]
+    return enhanced.astype(np.float32) / 255.0
+
+
 # ImageNet normalization constants
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
@@ -115,10 +150,11 @@ class DepthExtractor(BaseExtractor):
         # Resize back to original image dimensions
         depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_LINEAR)
 
-        # Normalize to [0, 1]
+        # Record raw depth range for metadata
         d_min, d_max = float(depth.min()), float(depth.max())
-        depth = (depth - d_min) / (d_max - d_min + 1e-8)
-        depth = depth.astype(np.float32)
+
+        # Apply CLAHE for full contrast stretch (fixes pancake layers)
+        depth = enhance_depth_clahe(depth)
 
         return ExtractionResult(
             extractor_name=self.name,

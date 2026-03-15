@@ -77,6 +77,73 @@ class TestDepthExtractor:
 
 
 # ---------------------------------------------------------------------------
+# CLAHE enhancement tests
+# ---------------------------------------------------------------------------
+
+
+class TestCLAHEEnhancement:
+    """Tests for enhance_depth_clahe standalone function."""
+
+    def test_clahe_enhancement(self):
+        """CLAHE converts pancake layers (few distinct values) into continuous volume (more unique values)."""
+        from apollo7.extraction.depth import enhance_depth_clahe
+
+        # Synthetic depth map with only 3 bands plus slight noise
+        # (simulates real depth model output with quantization artifacts)
+        rng = np.random.RandomState(42)
+        depth_raw = np.zeros((128, 128), dtype=np.float32)
+        depth_raw[:43, :] = 50.0
+        depth_raw[43:86, :] = 128.0
+        depth_raw[86:, :] = 220.0
+        # Add slight noise as real depth models produce
+        depth_raw += rng.randn(128, 128).astype(np.float32) * 2.0
+
+        unique_before = len(np.unique(
+            ((depth_raw - depth_raw.min()) / (depth_raw.max() - depth_raw.min() + 1e-8) * 255).astype(np.uint8)
+        ))
+
+        result = enhance_depth_clahe(depth_raw)
+
+        unique_after = len(np.unique((result * 255).astype(np.uint8)))
+        assert unique_after > unique_before, (
+            f"CLAHE should increase unique values: before={unique_before}, after={unique_after}"
+        )
+        # CLAHE should produce substantially more unique values
+        assert unique_after > 10, (
+            f"Expected >10 unique values after CLAHE, got {unique_after}"
+        )
+
+    def test_clahe_preserves_range(self):
+        """Output depth map is float32 in [0, 1] range."""
+        from apollo7.extraction.depth import enhance_depth_clahe
+
+        depth_raw = np.random.rand(64, 64).astype(np.float32) * 255.0
+        result = enhance_depth_clahe(depth_raw)
+
+        assert result.dtype == np.float32
+        assert result.min() >= 0.0
+        assert result.max() <= 1.0
+
+    def test_clahe_monotonic_order(self):
+        """Relative depth ordering is preserved (closer stays closer)."""
+        from apollo7.extraction.depth import enhance_depth_clahe
+
+        # Create depth with clear ordering: left=near, right=far
+        depth_raw = np.zeros((32, 64), dtype=np.float32)
+        depth_raw[:, :32] = 50.0   # near (left half)
+        depth_raw[:, 32:] = 200.0  # far (right half)
+
+        result = enhance_depth_clahe(depth_raw)
+
+        # Average of left half should be less than average of right half
+        left_mean = result[:, :32].mean()
+        right_mean = result[:, 32:].mean()
+        assert left_mean < right_mean, (
+            f"Depth ordering broken: left={left_mean:.4f} >= right={right_mean:.4f}"
+        )
+
+
+# ---------------------------------------------------------------------------
 # ExtractionPipeline tests
 # ---------------------------------------------------------------------------
 
