@@ -46,6 +46,7 @@ from apollo7.config.settings import (
     OPACITY_DEFAULT,
     POINT_SIZE_DEFAULT,
     WINDOW_SIZE,
+    load_api_key,
 )
 from apollo7.gui.widgets.undo_commands import ParameterChangeCommand, ResetSectionCommand
 from apollo7.extraction.base import ExtractionResult
@@ -73,6 +74,7 @@ from apollo7.config.settings import (
     SSAO_RADIUS_DEFAULT,
     TRAIL_LENGTH_DEFAULT,
 )
+from apollo7.gui.panels.claude_panel import ClaudePanel
 from apollo7.gui.panels.controls_panel import ControlsPanel
 from apollo7.gui.panels.export_panel import ExportPanel
 from apollo7.gui.panels.feature_strip import FeatureStripPanel
@@ -82,6 +84,7 @@ from apollo7.gui.panels.postfx_panel import PostFXPanel
 from apollo7.gui.panels.preset_panel import PresetPanel
 from apollo7.gui.panels.simulation_panel import SimulationPanel
 from apollo7.gui.panels.discovery_panel import DiscoveryPanel
+from apollo7.gui.widgets.settings_dialog import SettingsDialog
 from apollo7.gui.widgets.toolbar_strip import ToolbarStrip
 from apollo7.gui.widgets.section import Section
 from apollo7.gui.theme import setup_theme
@@ -211,8 +214,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._proposal_history = ProposalHistory()
         self._animator = ParameterAnimator()
         self._enrichment_service = EnrichmentService(
-            api_key=CLAUDE_API_KEY,
-            enabled=ENRICHMENT_ENABLED,
+            api_key=load_api_key(),
+            enabled=True,
         )
         self._enrichment_enabled = ENRICHMENT_ENABLED
         self._embedding_cloud_visible = False
@@ -294,15 +297,16 @@ class MainWindow(QtWidgets.QMainWindow):
         explore_layout.setContentsMargins(4, 4, 4, 4)
         explore_layout.setSpacing(8)
 
-        sec_ai = Section("AI Direction", collapsed=False)
-        # Placeholder for Claude panel (Plan 04 will populate)
-        ai_placeholder = QtWidgets.QLabel(
-            "Analyze your photo to get AI-suggested sculpture parameters"
+        self.claude_panel = ClaudePanel()
+        self.claude_panel.set_enrichment_service(self._enrichment_service)
+        # Update initial empty state based on current context
+        self.claude_panel.update_empty_state(
+            has_photo=bool(self._photo_paths),
+            has_api_key=bool(self._enrichment_service._api_key),
         )
-        ai_placeholder.setWordWrap(True)
-        ai_placeholder.setAlignment(QtCore.Qt.AlignCenter)
-        ai_placeholder.setStyleSheet("color: #808080; font-size: 12px; padding: 16px;")
-        sec_ai.content_layout.addWidget(ai_placeholder)
+
+        sec_ai = Section("AI Direction", collapsed=False)
+        sec_ai.content_layout.addWidget(self.claude_panel)
         explore_layout.addWidget(sec_ai)
 
         sec_presets = Section("Presets", collapsed=False)
@@ -370,6 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # --- Build menus ---
         self._build_intelligence_menu()
+        self._build_settings_menu()
 
         # --- Connect all signals ---
         self._connect_signals()
@@ -412,6 +417,33 @@ class MainWindow(QtWidgets.QMainWindow):
         self._act_enrichment.setChecked(self._enrichment_enabled)
         self._act_enrichment.triggered.connect(self._on_toggle_enrichment)
         intelligence_menu.addAction(self._act_enrichment)
+
+    def _build_settings_menu(self) -> None:
+        """Create Settings menu with API key management."""
+        menu_bar = self.menuBar()
+        settings_menu = menu_bar.addMenu("Settings")
+
+        act_settings = QtGui.QAction("Preferences...", self)
+        act_settings.setShortcut(
+            QtGui.QKeySequence(QtCore.Qt.CTRL | QtCore.Qt.Key_Comma)
+        )
+        act_settings.triggered.connect(self._on_open_settings)
+        settings_menu.addAction(act_settings)
+
+    def _on_open_settings(self) -> None:
+        """Open the Settings dialog for API key management."""
+        dialog = SettingsDialog(self)
+        dialog.api_key_saved.connect(self._on_api_key_saved)
+        dialog.exec()
+
+    def _on_api_key_saved(self, key: str) -> None:
+        """Update enrichment service with new API key."""
+        self._enrichment_service._api_key = key
+        self._enrichment_service._client = None  # Force re-creation
+        self.claude_panel.update_empty_state(
+            has_photo=bool(self._photo_paths),
+            has_api_key=bool(key),
+        )
 
     def _connect_signals(self) -> None:
         """Wire all inter-component signals."""
@@ -537,6 +569,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.viewport.apply_crossfaded_preset
         )
 
+        # --- Claude panel: Apply suggested params via CrossfadeEngine ---
+        self.claude_panel.apply_requested.connect(self._on_claude_apply)
+
         # --- Phase 3: Discovery panel signals ---
         self.discovery_panel.proposal_requested.connect(self._on_discovery_propose)
         self.discovery_panel.proposal_applied.connect(self._on_discovery_apply)
@@ -634,6 +669,13 @@ class MainWindow(QtWidgets.QMainWindow):
         """Handle photo thumbnail click in library panel."""
         self._selected_photo = photo_path
         self.controls_panel.btn_reextract.setEnabled(True)
+
+        # Update Claude panel with selected photo
+        self.claude_panel.set_image_path(photo_path)
+        self.claude_panel.update_empty_state(
+            has_photo=True,
+            has_api_key=bool(self._enrichment_service._api_key),
+        )
 
         # Show cached extraction results in feature viewer if available
         results = self._extraction_results.get(photo_path)
@@ -1444,6 +1486,47 @@ class MainWindow(QtWidgets.QMainWindow):
         # Push compound undo for the whole preset application
         logger.info("Preset applied: %d sim params, %d postfx params",
                      len(sim_params), len(postfx_params))
+
+    def _on_claude_apply(self, param_dict: dict) -> None:
+        """Apply Claude-suggested parameters via CrossfadeEngine with undo support.
+
+        Routes all parameters through the viewport's CrossfadeEngine for smooth
+        400ms ease-out transitions. Undo commands are recorded with a no-op
+        initial apply (crossfade handles the visual), and _apply_param is used
+        only on undo/redo.
+        """
+        # Record old values before any changes
+        old_values = {
+            name: self._prev_values.get(name, float(val))
+            for name, val in param_dict.items()
+        }
+
+        # Update prev_values tracking
+        for name, val in param_dict.items():
+            self._prev_values[name] = float(val)
+
+        # Build compound undo command
+        self._undo_stack.beginMacro("Apply Claude Suggestion")
+        for param_name, value in param_dict.items():
+            cmd = ParameterChangeCommand(
+                param_name=param_name,
+                old_value=old_values[param_name],
+                new_value=float(value),
+                apply_fn=self._apply_param,
+                merge_id_offset=-1,  # No merging for Claude apply
+            )
+            # push() calls redo() which calls _apply_param -- but crossfade
+            # below will override with smooth transition for all params
+            self._undo_stack.push(cmd)
+        self._undo_stack.endMacro()
+
+        # Route ALL params through CrossfadeEngine for smooth transitions.
+        # This overrides the instant application from undo push above,
+        # starting smooth interpolation from current viewport state.
+        self.viewport.apply_crossfaded_preset(param_dict)
+
+        logger.info("Claude suggestion applied: %d params via CrossfadeEngine",
+                     len(param_dict))
 
     def _on_save_current_preset(self) -> None:
         """Collect current params and show save preset dialog."""
