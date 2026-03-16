@@ -49,13 +49,13 @@ Exceptions: Preset thumbnail grid cells use 80x60px fixed size for gradient icon
 |------|------|--------|-------------|
 | Body | 13px | 400 (regular) | 1.5 |
 | Label | 11px | 400 (regular) | 1.4 |
-| Heading | 14px | 600 (semibold) | 1.2 |
+| Heading | 15px | 600 (semibold) | 1.2 |
 | Display | 16px | 600 (semibold) | 1.2 |
 
 Notes:
 - Body at 13px matches existing theme.py base font-size.
 - Label at 11px used for slider value readouts, FPS counter, and parameter chips on Claude suggestion cards.
-- Heading at 14px used for panel-title (existing `#panel-title` QSS), section headers inside tabs, and collapsible group headers.
+- Heading at 15px used for panel-title (existing `#panel-title` QSS), section headers inside tabs, and collapsible group headers. The 2px gap from Body (13px) ensures a visible size distinction at screen resolution.
 - Display at 16px used only for the Claude suggestion card artistic rationale text.
 
 ---
@@ -91,6 +91,8 @@ Accent reserved for:
 ---
 
 ## Layout Contract
+
+Primary focal point: Simulate/Pause button in toolbar strip (accent background draws initial eye).
 
 ### Panel Structure
 
@@ -180,7 +182,7 @@ Fixed minimum 280px, maximum 360px. Splitter-resizable with viewport.
 
 - Height: 44px
 - Background: #1a1a1a with 1px bottom border #3a3a3a
-- Simulate/Pause button: accent bg, 14px semibold, 8px 16px padding
+- Simulate/Pause button: accent bg, 15px semibold, 8px 16px padding
 - Reset Camera button: transparent bg, #3a3a3a border, 13px regular
 - FPS counter: right-aligned, monospace 11px, semi-transparent bg
 
@@ -195,7 +197,7 @@ Fixed minimum 280px, maximum 360px. Splitter-resizable with viewport.
 - Padding: 16px
 - Rationale text: 16px regular, #e0e0e0, line-height 1.5
 - Parameter chips: inline-block, 11px regular, #e0e0e0 text, #2d2d2d bg, 1px #3a3a3a border, border-radius 12px, padding 4px 8px
-- Apply button: full width, accent bg, white text, 14px semibold, 8px 16px padding, border-radius 4px
+- Apply button: full width, accent bg, white text, 15px semibold, 8px 16px padding, border-radius 4px
 - Margin-bottom: 16px between card and direction buttons
 
 ### Direction Buttons
@@ -220,7 +222,7 @@ Fixed minimum 280px, maximum 360px. Splitter-resizable with viewport.
 - Title: "Settings" in heading style
 - API Key field: QLineEdit with echoMode Password, full width
 - Label: "Anthropic API Key" at 13px
-- Buttons: [Save] accent bg + [Cancel] transparent bg, right-aligned
+- Buttons: [Save API Key] accent bg + [Discard Changes] transparent bg, right-aligned
 - Help text: "Required for Claude analysis features. Get a key at console.anthropic.com" at 11px, #808080
 
 ### Loading Spinner (during Claude API calls)
@@ -272,6 +274,8 @@ Fixed minimum 280px, maximum 360px. Splitter-resizable with viewport.
 | Primary CTA (Create tab) | "Simulate" / "Pause" (toggle) |
 | Primary CTA (Explore tab) | "Analyze with Claude" |
 | Apply suggestion | "Apply to Sculpture" |
+| Settings confirm button | "Save API Key" |
+| Settings dismiss button | "Discard Changes" |
 | Empty state -- Claude panel, no photo | "Load a photo first to analyze with Claude" |
 | Empty state -- Claude panel, no API key | "API key required. Go to Settings to add your Anthropic key." |
 | Empty state -- Claude panel, ready | "Analyze your photo to get AI-suggested sculpture parameters" |
@@ -300,10 +304,10 @@ Fixed minimum 280px, maximum 360px. Splitter-resizable with viewport.
 
 ```
 [idle] --click Analyze--> [loading] --success--> [suggestion]
-                                    --error--> [error]
+                                   --error--> [error]
 [suggestion] --click Apply--> [applied] --click direction--> [loading]
-                                        --click Keep This--> [idle]
-                                        --click Start Over--> [idle]
+                                       --click Keep This--> [idle]
+                                       --click Start Over--> [idle]
 [error] --click Retry--> [loading]
 ```
 
