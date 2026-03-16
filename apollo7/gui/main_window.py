@@ -1,4 +1,4 @@
-"""Apollo 7 main window with viewport-dominant splitter layout.
+"""Apollo 7 main window with tabbed right sidebar layout.
 
 Layout:
   Progress bar (hidden by default, shown during processing)
@@ -6,27 +6,21 @@ Layout:
     Left: Vertical splitter
       - Top: 3D viewport (~85%)
       - Bottom: Feature viewer (~15%, collapsible)
-    Right: Vertical splitter
-      - Top: Controls panel
-      - Middle: Simulation panel
-      - Middle: PostFX panel
-      - Bottom: Library panel
+    Right: Toolbar strip + QTabWidget (Create / Explore / Export)
 
-Phase 3 additions:
-  - Discovery panel in right sidebar (below simulation)
-  - PatchBayEditor as overlay (Ctrl+M toggle)
-  - Crossfade widget via preset panel
-  - ParameterAnimator in render loop
-  - Collection analysis trigger after batch extraction
-  - Enrichment service wiring
-  - Intelligence menu with keyboard shortcuts
+Phase 6 restructure:
+  - Right sidebar converted from vertical stack to 3-tab layout
+  - Toolbar strip with Simulate/Pause, Reset Camera, FPS counter above tabs
+  - Create tab: Controls + Simulation + PostFX panels in collapsible sections
+  - Explore tab: Presets + Discovery panels
+  - Export tab: Library + Export panels
 
 Wiring:
   - Library: load photos -> ingestion worker -> thumbnails in library panel
   - Extract: button triggers ExtractionWorker for all loaded photos
   - Progressive build: each photo_complete adds point cloud to viewport
   - Controls: sliders update viewport in real-time, mode toggles regenerate
-  - Simulation: Simulate button -> init engine -> start animation loop
+  - Simulation: ToolbarStrip Simulate/Pause -> init engine -> start animation loop
   - Discovery: dimensional sliders -> random walk proposals -> apply to sim
   - Mapping: feature-to-param connections -> MappingEngine evaluation
   - Collection: batch extraction -> CLIP embeddings -> DBSCAN/UMAP -> embedding cloud
@@ -88,6 +82,9 @@ from apollo7.gui.panels.postfx_panel import PostFXPanel
 from apollo7.gui.panels.preset_panel import PresetPanel
 from apollo7.gui.panels.simulation_panel import SimulationPanel
 from apollo7.gui.panels.discovery_panel import DiscoveryPanel
+from apollo7.gui.widgets.toolbar_strip import ToolbarStrip
+from apollo7.gui.widgets.section import Section
+from apollo7.gui.theme import setup_theme
 from apollo7.gui.widgets.node_editor import PatchBayEditor
 from apollo7.gui.widgets.progress_bar import ExtractionProgressBar
 from apollo7.gui.widgets.viewport_widget import ViewportWidget
@@ -246,7 +243,7 @@ class MainWindow(QtWidgets.QMainWindow):
         left_splitter.setSizes([850, 150])
         left_splitter.setCollapsible(1, True)
 
-        # Right side: scrollable panel stack (avoids overlap from splitter)
+        # Right side: panels (created first, then placed into tabs)
         self.controls_panel = ControlsPanel()
         self.simulation_panel = SimulationPanel()
         self.postfx_panel = PostFXPanel()
@@ -255,27 +252,111 @@ class MainWindow(QtWidgets.QMainWindow):
         self.library_panel = LibraryPanel()
         self.discovery_panel = DiscoveryPanel()
 
+        # Hide Simulate/Pause/Reset Camera from SimulationPanel (moved to toolbar)
+        self.simulation_panel.btn_simulate.setVisible(False)
+        self.simulation_panel.btn_pause.setVisible(False)
+        self.simulation_panel.btn_reset_camera.setVisible(False)
+
+        # --- Toolbar strip (always visible above tabs) ---
+        self.toolbar_strip = ToolbarStrip()
+
+        # --- Tab widget with 3 tabs ---
+        self.tab_widget = QtWidgets.QTabWidget()
+
+        # -- Create tab --
+        create_widget = QtWidgets.QWidget()
+        create_layout = QtWidgets.QVBoxLayout(create_widget)
+        create_layout.setContentsMargins(4, 4, 4, 4)
+        create_layout.setSpacing(8)
+
+        sec_rendering = Section("Rendering", collapsed=False)
+        sec_rendering.content_layout.addWidget(self.controls_panel)
+        create_layout.addWidget(sec_rendering)
+
+        sec_simulation = Section("Simulation", collapsed=False)
+        sec_simulation.content_layout.addWidget(self.simulation_panel)
+        create_layout.addWidget(sec_simulation)
+
+        sec_postfx = Section("PostFX", collapsed=True)
+        sec_postfx.content_layout.addWidget(self.postfx_panel)
+        create_layout.addWidget(sec_postfx)
+
+        create_layout.addStretch(1)
+
+        create_scroll = QtWidgets.QScrollArea()
+        create_scroll.setWidgetResizable(True)
+        create_scroll.setWidget(create_widget)
+        create_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+
+        # -- Explore tab --
+        explore_widget = QtWidgets.QWidget()
+        explore_layout = QtWidgets.QVBoxLayout(explore_widget)
+        explore_layout.setContentsMargins(4, 4, 4, 4)
+        explore_layout.setSpacing(8)
+
+        sec_ai = Section("AI Direction", collapsed=False)
+        # Placeholder for Claude panel (Plan 04 will populate)
+        ai_placeholder = QtWidgets.QLabel(
+            "Analyze your photo to get AI-suggested sculpture parameters"
+        )
+        ai_placeholder.setWordWrap(True)
+        ai_placeholder.setAlignment(QtCore.Qt.AlignCenter)
+        ai_placeholder.setStyleSheet("color: #808080; font-size: 12px; padding: 16px;")
+        sec_ai.content_layout.addWidget(ai_placeholder)
+        explore_layout.addWidget(sec_ai)
+
+        sec_presets = Section("Presets", collapsed=False)
+        sec_presets.content_layout.addWidget(self.preset_panel)
+        explore_layout.addWidget(sec_presets)
+
+        sec_discovery = Section("Discovery", collapsed=True)
+        sec_discovery.content_layout.addWidget(self.discovery_panel)
+        explore_layout.addWidget(sec_discovery)
+
+        explore_layout.addStretch(1)
+
+        explore_scroll = QtWidgets.QScrollArea()
+        explore_scroll.setWidgetResizable(True)
+        explore_scroll.setWidget(explore_widget)
+        explore_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+
+        # -- Export tab --
+        export_widget = QtWidgets.QWidget()
+        export_layout = QtWidgets.QVBoxLayout(export_widget)
+        export_layout.setContentsMargins(4, 4, 4, 4)
+        export_layout.setSpacing(8)
+
+        sec_library = Section("Library", collapsed=False)
+        sec_library.content_layout.addWidget(self.library_panel)
+        export_layout.addWidget(sec_library)
+
+        sec_export = Section("Export", collapsed=False)
+        sec_export.content_layout.addWidget(self.export_panel)
+        export_layout.addWidget(sec_export)
+
+        export_layout.addStretch(1)
+
+        export_scroll = QtWidgets.QScrollArea()
+        export_scroll.setWidgetResizable(True)
+        export_scroll.setWidget(export_widget)
+        export_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+
+        # Add tabs
+        self.tab_widget.addTab(create_scroll, "Create")
+        self.tab_widget.addTab(explore_scroll, "Explore")
+        self.tab_widget.addTab(export_scroll, "Export")
+
+        # Right container: toolbar strip + tab widget
         right_container = QtWidgets.QWidget()
         right_layout = QtWidgets.QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(2)
-        right_layout.addWidget(self.controls_panel)
-        right_layout.addWidget(self.simulation_panel)
-        right_layout.addWidget(self.discovery_panel)
-        right_layout.addWidget(self.postfx_panel)
-        right_layout.addWidget(self.preset_panel)
-        right_layout.addWidget(self.export_panel)
-        right_layout.addWidget(self.library_panel)
-        right_layout.addStretch()
-
-        right_scroll = QtWidgets.QScrollArea()
-        right_scroll.setWidgetResizable(True)
-        right_scroll.setWidget(right_container)
-        right_scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        right_scroll.setMinimumWidth(340)
+        right_layout.setSpacing(0)
+        right_layout.addWidget(self.toolbar_strip)
+        right_layout.addWidget(self.tab_widget)
+        right_container.setMinimumWidth(340)
 
         h_splitter.addWidget(left_splitter)
-        h_splitter.addWidget(right_scroll)
+        h_splitter.addWidget(right_container)
         h_splitter.setSizes([1400, 520])  # ~73% viewport
 
         main_layout.addWidget(h_splitter)
@@ -402,18 +483,20 @@ class MainWindow(QtWidgets.QMainWindow):
             self._on_postfx_reset_all
         )
 
-        # --- Simulation panel signals ---
-        self.simulation_panel.simulate_clicked.connect(self._on_simulate)
-        self.simulation_panel.pause_toggled.connect(self._on_pause_toggled)
+        # --- Toolbar strip signals (replaces simulation panel buttons) ---
+        self.toolbar_strip.simulate_clicked.connect(self._on_simulate)
+        self.toolbar_strip.pause_toggled.connect(self._on_pause_toggled)
+        self.toolbar_strip.reset_camera_clicked.connect(
+            lambda: self.viewport.reset_camera()
+        )
+
+        # --- Simulation panel signals (param sliders and resets) ---
         self.simulation_panel.performance_mode_changed.connect(
             self._on_performance_mode_changed
         )
         self.simulation_panel.param_changed.connect(self._on_sim_param_changed)
         self.simulation_panel.section_reset.connect(self._on_section_reset)
         self.simulation_panel.reset_all.connect(self._on_reset_all_sim)
-        self.simulation_panel.reset_camera_clicked.connect(
-            lambda: self.viewport.reset_camera()
-        )
 
         # --- Keyboard shortcuts ---
         # Space: toggle pause/resume simulation
@@ -902,6 +985,7 @@ class MainWindow(QtWidgets.QMainWindow):
             )
             self.viewport.start_simulation()
             self.simulation_panel.set_simulation_running(True)
+            self.toolbar_strip.set_simulating(True)
             self._animation_start_time = time.monotonic()
             logger.info("Simulation started with %d particles", positions.shape[0])
         except Exception as exc:
@@ -951,6 +1035,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.simulation_panel.btn_pause.setText(
                 "Resume" if is_paused else "Pause"
             )
+            self.toolbar_strip.set_simulating(not is_paused)
 
     # ------------------------------------------------------------------
     # Phase 3: Discovery mode
