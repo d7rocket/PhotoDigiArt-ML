@@ -653,6 +653,15 @@ class MainWindow(QtWidgets.QMainWindow):
         if self._loaded_images:
             self.controls_panel.btn_extract.setEnabled(True)
 
+        # Auto-select first photo for Claude panel if none selected yet
+        if self._selected_photo is None and path in self._photo_paths:
+            self._selected_photo = path
+            self.claude_panel.set_image_path(path)
+            self.claude_panel.update_empty_state(
+                has_photo=True,
+                has_api_key=bool(self._enrichment_service._api_key),
+            )
+
     def _on_ingestion_progress(self, current: int, total: int) -> None:
         """Update progress bar during ingestion."""
         self.progress_bar.update(current, total)
@@ -660,6 +669,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_ingestion_finished(self) -> None:
         """Hide progress bar when ingestion completes."""
         self.progress_bar.finish()
+        # Ensure Claude panel knows about loaded photos
+        if self._photo_paths and self._selected_photo:
+            self.claude_panel.update_empty_state(
+                has_photo=True,
+                has_api_key=bool(self._enrichment_service._api_key),
+            )
 
     # ------------------------------------------------------------------
     # Photo selection
