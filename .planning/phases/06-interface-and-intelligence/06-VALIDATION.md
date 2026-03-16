@@ -38,14 +38,15 @@ created: 2026-03-16
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 06-01-01 | 01 | 1 | UI-01 | visual/manual | manual inspection | N/A | ⬜ pending |
-| 06-01-02 | 01 | 1 | UI-03 | import | `python -c "from qt_material import apply_stylesheet"` | ❌ W0 | ⬜ pending |
-| 06-02-01 | 02 | 1 | UI-02 | unit | `python -m pytest tests/ -k "slider"` | ❌ W0 | ⬜ pending |
-| 06-02-02 | 02 | 1 | UI-04 | unit | `python -m pytest tests/ -k "preset"` | ❌ W0 | ⬜ pending |
-| 06-03-01 | 03 | 2 | CLAU-01 | unit | `python -m pytest tests/ -k "claude"` | ❌ W0 | ⬜ pending |
-| 06-03-02 | 03 | 2 | CLAU-02 | unit | `python -m pytest tests/ -k "pydantic"` | ❌ W0 | ⬜ pending |
-| 06-04-01 | 04 | 2 | CLAU-03 | integration | `python -m pytest tests/ -k "crossfade"` | ❌ W0 | ⬜ pending |
-| 06-04-02 | 04 | 2 | CLAU-04 | unit | `python -m pytest tests/ -k "refinement"` | ❌ W0 | ⬜ pending |
+| 06-01-01 | 01 | 1 | UI-01, UI-03 | import | `python -c "from qt_material import apply_stylesheet"` | ❌ W0 | ⬜ pending |
+| 06-01-02 | 01 | 1 | UI-01, UI-02 | import | `python -c "from apollo7.gui.main_window import MainWindow"` | ✅ | ⬜ pending |
+| 06-02-01 | 02 | 1 | CLAU-01, CLAU-02 | import | `python -c "from apollo7.api.models import SculptureParams"` | ❌ W0 | ⬜ pending |
+| 06-02-02 | 02 | 1 | CLAU-01 | import | `python -c "from apollo7.gui.widgets.settings_dialog import SettingsDialog"` | ❌ W0 | ⬜ pending |
+| 06-03-01 | 03 | 2 | UI-04 | import | `python -c "from apollo7.gui.widgets.preset_card import PresetCard"` | ❌ W0 | ⬜ pending |
+| 06-03-02 | 03 | 2 | UI-04 | import | `python -c "from apollo7.gui.panels.preset_panel import PresetPanel"` | ✅ | ⬜ pending |
+| 06-04-01 | 04 | 2 | CLAU-03, CLAU-04 | import | `python -c "from apollo7.gui.panels.claude_panel import ClaudePanel"` | ❌ W0 | ⬜ pending |
+| 06-04-02 | 04 | 2 | CLAU-03 | integration | `python -c "from apollo7.gui.main_window import MainWindow"` | ✅ | ⬜ pending |
+| 06-04-03 | 04 | 2 | ALL | checkpoint | human-verify: launch app, test full workflow | N/A | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
