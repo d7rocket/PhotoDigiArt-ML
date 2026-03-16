@@ -193,8 +193,8 @@ class EnrichmentService:
     ) -> SculptureParams | None:
         """Analyze a photo and suggest sculpture parameters via Claude API.
 
-        Uses messages.parse() with Pydantic structured output to get
-        type-safe, bounded parameter suggestions.
+        Uses messages.create() with JSON output and Pydantic validation
+        for type-safe, bounded parameter suggestions.
 
         Args:
             image_path: Path to the photo file.
@@ -220,7 +220,15 @@ class EnrichmentService:
                 "that transforms photos into living particle sculptures. Analyze "
                 "the photo and suggest simulation parameters that would create a "
                 "compelling sculpture capturing the photo's mood, energy, and "
-                "visual character."
+                "visual character.\n\n"
+                "Respond with ONLY a JSON object (no markdown, no extra text) with these fields:\n"
+                '- "rationale": string (2-3 sentences explaining how the photo maps to parameters)\n'
+                '- "solver_iterations": integer 1-6 (1=ethereal gas, 6=dense liquid)\n'
+                '- "home_strength": float 0.1-20.0 (how tightly particles hold form)\n'
+                '- "noise_amplitude": float 0.0-5.0 (organic motion strength)\n'
+                '- "breathing_rate": float 0.05-0.5 (breathing animation speed)\n'
+                '- "point_size": float 0.5-10.0 (particle visual size)\n'
+                '- "opacity": float 0.0-1.0 (particle transparency)'
             )
 
             content = [
@@ -237,15 +245,23 @@ class EnrichmentService:
                 },
             ]
 
-            response = client.messages.parse(
+            response = client.messages.create(
                 model=self._model,
                 max_tokens=512,
                 system=system_prompt,
                 messages=[{"role": "user", "content": content}],
-                output_format=SculptureParams,
             )
 
-            return response.parsed_output.clamp_to_bounds()
+            text = response.content[0].text.strip()
+            # Strip markdown code fences if present
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3].strip()
+
+            data = json.loads(text)
+            params = SculptureParams(**data)
+            return params.clamp_to_bounds()
 
         except Exception as exc:
             logger.warning("Parameter suggestion API call failed: %s", exc)
@@ -284,10 +300,15 @@ class EnrichmentService:
 
             system_prompt = (
                 "You are an art advisor for Apollo 7, a 3D data sculpture tool "
-                "that transforms photos into living particle sculptures. Analyze "
-                "the photo and suggest simulation parameters that would create a "
-                "compelling sculpture capturing the photo's mood, energy, and "
-                "visual character."
+                "that transforms photos into living particle sculptures.\n\n"
+                "Respond with ONLY a JSON object (no markdown, no extra text) with these fields:\n"
+                '- "rationale": string (2-3 sentences explaining your adjustments)\n'
+                '- "solver_iterations": integer 1-6 (1=ethereal gas, 6=dense liquid)\n'
+                '- "home_strength": float 0.1-20.0 (how tightly particles hold form)\n'
+                '- "noise_amplitude": float 0.0-5.0 (organic motion strength)\n'
+                '- "breathing_rate": float 0.05-0.5 (breathing animation speed)\n'
+                '- "point_size": float 0.5-10.0 (particle visual size)\n'
+                '- "opacity": float 0.0-1.0 (particle transparency)'
             )
 
             content = [
@@ -304,15 +325,22 @@ class EnrichmentService:
                 },
             ]
 
-            response = client.messages.parse(
+            response = client.messages.create(
                 model=self._model,
                 max_tokens=512,
                 system=system_prompt,
                 messages=[{"role": "user", "content": content}],
-                output_format=SculptureParams,
             )
 
-            return response.parsed_output.clamp_to_bounds()
+            text = response.content[0].text.strip()
+            if text.startswith("```"):
+                text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+                if text.endswith("```"):
+                    text = text[:-3].strip()
+
+            data = json.loads(text)
+            params = SculptureParams(**data)
+            return params.clamp_to_bounds()
 
         except Exception as exc:
             logger.warning("Parameter refinement API call failed: %s", exc)
