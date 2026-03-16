@@ -3,7 +3,9 @@
 All values are module-level constants that serve as defaults.
 """
 
+import json
 import os
+from pathlib import Path
 
 # -- Point rendering defaults --
 POINT_SIZE_DEFAULT: float = 2.0
@@ -116,6 +118,57 @@ DEFAULT_PRESETS_DIR: str = "~/.apollo7/presets/"
 EXPORT_MAX_RESOLUTION: int = 15360
 
 # -- Claude API enrichment (optional, offline-first) --
-CLAUDE_API_KEY: str | None = os.environ.get("APOLLO7_CLAUDE_API_KEY", None)
 ENRICHMENT_ENABLED: bool = False
 CLAUDE_MODEL: str = "claude-sonnet-4-20250514"
+
+# -- Config file management --
+_CONFIG_DIR = Path.home() / ".apollo7"
+_CONFIG_FILE = _CONFIG_DIR / "config.json"
+
+
+def load_api_key() -> str | None:
+    """Load Anthropic API key from environment or config file.
+
+    Priority:
+      1. APOLLO7_CLAUDE_API_KEY environment variable
+      2. ~/.apollo7/config.json anthropic_api_key field
+
+    Returns:
+        API key string, or None if not configured.
+    """
+    env_key = os.environ.get("APOLLO7_CLAUDE_API_KEY")
+    if env_key:
+        return env_key
+    if _CONFIG_FILE.exists():
+        try:
+            data = json.loads(_CONFIG_FILE.read_text())
+            return data.get("anthropic_api_key")
+        except (json.JSONDecodeError, OSError):
+            pass
+    return None
+
+
+def save_api_key(key: str) -> None:
+    """Save Anthropic API key to ~/.apollo7/config.json.
+
+    Creates the config directory if it doesn't exist. Preserves
+    existing config values. Sets restrictive file permissions
+    (best effort on Windows).
+    """
+    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    config: dict = {}
+    if _CONFIG_FILE.exists():
+        try:
+            config = json.loads(_CONFIG_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+    config["anthropic_api_key"] = key
+    _CONFIG_FILE.write_text(json.dumps(config, indent=2))
+    # Restrictive permissions (best effort on Windows)
+    try:
+        _CONFIG_FILE.chmod(0o600)
+    except OSError:
+        pass
+
+
+CLAUDE_API_KEY: str | None = load_api_key()
