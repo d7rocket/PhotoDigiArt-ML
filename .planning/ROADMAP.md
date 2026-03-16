@@ -97,7 +97,7 @@ Plans:
   3. User can click a button to have Claude analyze the loaded photo(s) and receive a suggested parameter set with artistic rationale
   4. Claude-suggested parameters apply via smooth crossfade into the viewport, and user can iterate with "more/less like this" refinement
   5. All Claude features work asynchronously -- the viewport never freezes during API calls, and core functionality works fully offline
-**Plans:** 4 plans
+**Plans:** 2/4 plans executed
 
 Plans:
 - [ ] 06-01-PLAN.md -- qt-material theming, tabbed layout restructure, and toolbar strip
@@ -117,4 +117,4 @@ Phases execute in numeric order: 4 -> 5 -> 6
 | 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
 | 4. Stable Physics | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
 | 5. Visual Quality | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
-| 6. Interface and Intelligence | v2.0 | 0/4 | In progress | - |
+| 6. Interface and Intelligence | 2/4 | In Progress|  | - |

@@ -66,9 +66,9 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
 ### UI & UX
 
-- [ ] **UI-01**: Clean, logical panel layout with clear visual hierarchy
-- [ ] **UI-02**: Tiered parameter controls -- 6 essential sliders visible, advanced collapsed
-- [ ] **UI-03**: qt-material theming for polished, modern appearance
+- [x] **UI-01**: Clean, logical panel layout with clear visual hierarchy
+- [x] **UI-02**: Tiered parameter controls -- 6 essential sliders visible, advanced collapsed
+- [x] **UI-03**: qt-material theming for polished, modern appearance
 - [ ] **UI-04**: Parameter presets with visual thumbnails for quick selection
 
 ### Claude Creative Direction
@@ -136,9 +136,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REND-06 | Phase 5 | Complete |
 | DPTH-01 | Phase 5 | Complete |
 | DPTH-02 | Phase 5 | Complete |
-| UI-01 | Phase 6 | Pending |
-| UI-02 | Phase 6 | Pending |
-| UI-03 | Phase 6 | Pending |
+| UI-01 | Phase 6 | Complete |
+| UI-02 | Phase 6 | Complete |
+| UI-03 | Phase 6 | Complete |
 | UI-04 | Phase 6 | Pending |
 | CLAU-01 | Phase 6 | Complete |
 | CLAU-02 | Phase 6 | Complete |

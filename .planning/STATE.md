@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 06-02-PLAN.md
-last_updated: "2026-03-16T13:02:41.084Z"
-last_activity: 2026-03-16 -- Claude parameter service + Settings dialog (06-02)
+stopped_at: Completed 06-01-PLAN.md
+last_updated: "2026-03-16T13:03:06Z"
+last_activity: 2026-03-16 -- Tabbed layout + qt-material theme + toolbar strip (06-01)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 13
-  completed_plans: 10
-  percent: 77
+  completed_plans: 11
+  percent: 85
 ---
 
 # Project State
@@ -21,23 +21,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Photos become data, data becomes art -- the pipeline must faithfully extract meaningful signals and render them as explorable, living 3D sculptures.
-**Current focus:** Phase 5 -- Visual Quality (v2.0 Make It Alive)
+**Current focus:** Phase 6 -- Interface and Intelligence (v2.0 Make It Alive)
 
 ## Current Position
 
 Phase: 6 of 6 (Interface and Intelligence)
-Plan: 2 of 4 in current phase (06-02 complete)
+Plan: 3 of 4 in current phase (06-01, 06-02 complete)
 Status: Executing Phase 6
-Last activity: 2026-03-16 -- Claude parameter service + Settings dialog (06-02)
+Last activity: 2026-03-16 -- Tabbed layout + qt-material theme + toolbar strip (06-01)
 
-Progress: [████████░░] 77% (v2.0)
+Progress: [█████████░] 85% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10 (v2.0)
+- Total plans completed: 11 (v2.0)
 - Average duration: 4.3min
-- Total execution time: 42min
+- Total execution time: 47min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -50,7 +50,8 @@ Progress: [████████░░] 77% (v2.0)
 | 05    | 02   | 5min     | 2     | 6     |
 | 05    | 03   | 3min     | 2     | 4     |
 | 05    | 04   | 8min     | 3     | 5     |
-| Phase 06 P02 | 3min | 2 tasks | 4 files |
+| 06    | 01   | 5min     | 2     | 6     |
+| 06    | 02   | 3min     | 2     | 4     |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Recent decisions affecting current work:
 - [05-04]: GPU buffer sharing disabled -- pygfx vec3/vec4 mismatch; CPU readback fallback active
 - [05-04]: Bloom disabled on white background (washes out particles)
 - [05-04]: Saturation boost 1.8, alpha 0.92 for vibrant colors on white background
+- [06-01]: qt-material dark_blue.xml base theme with custom QSS overrides layered on top
+- [06-01]: Panels reparented into Section widgets inside tabs rather than decomposed
+- [06-01]: SimulationPanel buttons hidden (not removed) for backward compatibility
 - [Phase 06]: SculptureParams uses Pydantic Field(ge/le) for bounds matching simulation ranges
 - [Phase 06]: Config file at ~/.apollo7/config.json with env var taking priority over file
 
@@ -109,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:02:41.082Z
-Stopped at: Completed 06-02-PLAN.md
-Resume file: None
+Last session: 2026-03-16T13:03:06Z
+Stopped at: Completed 06-01-PLAN.md
+Resume file: .planning/phases/06-interface-and-intelligence/06-03-PLAN.md
