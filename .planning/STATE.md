@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
-stopped_at: Completed 06-01-PLAN.md
-last_updated: "2026-03-16T13:03:06Z"
-last_activity: 2026-03-16 -- Tabbed layout + qt-material theme + toolbar strip (06-01)
+stopped_at: Completed 06-03-PLAN.md
+last_updated: "2026-03-16T13:09:00Z"
+last_activity: 2026-03-16 -- Preset grid with gradient thumbnail cards (06-03)
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 13
-  completed_plans: 11
-  percent: 85
+  completed_plans: 12
+  percent: 92
 ---
 
 # Project State
@@ -26,18 +26,18 @@ See: .planning/PROJECT.md (updated 2026-03-15)
 ## Current Position
 
 Phase: 6 of 6 (Interface and Intelligence)
-Plan: 3 of 4 in current phase (06-01, 06-02 complete)
+Plan: 4 of 4 in current phase (06-01, 06-02, 06-03 complete)
 Status: Executing Phase 6
-Last activity: 2026-03-16 -- Tabbed layout + qt-material theme + toolbar strip (06-01)
+Last activity: 2026-03-16 -- Preset grid with gradient thumbnail cards (06-03)
 
-Progress: [█████████░] 85% (v2.0)
+Progress: [█████████░] 92% (v2.0)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11 (v2.0)
-- Average duration: 4.3min
-- Total execution time: 47min
+- Total plans completed: 12 (v2.0)
+- Average duration: 4.2min
+- Total execution time: 50min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -52,6 +52,7 @@ Progress: [█████████░] 85% (v2.0)
 | 05    | 04   | 8min     | 3     | 5     |
 | 06    | 01   | 5min     | 2     | 6     |
 | 06    | 02   | 3min     | 2     | 4     |
+| 06    | 03   | 3min     | 2     | 3     |
 
 ## Accumulated Context
 
@@ -99,6 +100,9 @@ Recent decisions affecting current work:
 - [06-01]: SimulationPanel buttons hidden (not removed) for backward compatibility
 - [Phase 06]: SculptureParams uses Pydantic Field(ge/le) for bounds matching simulation ranges
 - [Phase 06]: Config file at ~/.apollo7/config.json with env var taking priority over file
+- [06-03]: PresetCard generates gradient icon via HSV mapping of solver_iterations, noise_amplitude, home_strength
+- [06-03]: crossfade_changed signal kept as Signal(dict) matching existing main_window wiring
+- [06-03]: Built-in category added to DEFAULT_CATEGORIES list ahead of legacy categories
 
 ### Pending Todos
 
@@ -113,6 +117,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:03:06Z
-Stopped at: Completed 06-01-PLAN.md
-Resume file: .planning/phases/06-interface-and-intelligence/06-03-PLAN.md
+Last session: 2026-03-16T13:09:00Z
+Stopped at: Completed 06-03-PLAN.md
+Resume file: .planning/phases/06-interface-and-intelligence/06-04-PLAN.md
