@@ -4,7 +4,6 @@
 
 PhotoDigiArt-ML (Apollo 7) is a local-first generative art pipeline that treats photos as datasets, not prompts. It extracts geometric structure, color signals, and depth from source images, then transforms them into interactive particle sculptures — flowing point clouds with fluid physics — inspired by Refik Anadol's data sculptures.
 
-https://github.com/user-attachments/assets/placeholder
 
 ---
 
