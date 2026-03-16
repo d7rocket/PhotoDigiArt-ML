@@ -15,91 +15,118 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # Default categories shipped with the application
-DEFAULT_CATEGORIES = ["Organic", "Geometric", "Chaotic", "Calm", "Custom"]
+DEFAULT_CATEGORIES = ["Built-in", "Organic", "Geometric", "Chaotic", "Calm", "Custom"]
 
-# Built-in presets demonstrating different parameter combinations
+# Built-in presets using v2.0 PBF parameter names
 _BUILTIN_PRESETS: dict[str, dict[str, dict]] = {
-    "Organic": {
-        "Flowing Water": {
+    "Built-in": {
+        "Ethereal": {
             "sim_params": {
-                "noise_frequency": 0.3,
-                "noise_amplitude": 1.5,
-                "noise_octaves": 6,
-                "turbulence_scale": 1.2,
-                "viscosity": 0.3,
-                "speed": 0.8,
-                "damping": 0.95,
-            },
-            "postfx_params": {
-                "bloom_strength": 0.06,
-                "trail_length": 0.7,
-            },
-        },
-        "Breathing Cloud": {
-            "sim_params": {
-                "noise_frequency": 0.15,
-                "noise_amplitude": 0.8,
-                "noise_octaves": 3,
-                "turbulence_scale": 2.0,
-                "attraction_strength": 0.7,
-                "speed": 0.5,
-                "damping": 0.98,
-            },
-            "postfx_params": {
-                "bloom_strength": 0.1,
-            },
-        },
-    },
-    "Geometric": {
-        "Crystal Grid": {
-            "sim_params": {
-                "noise_frequency": 1.5,
-                "noise_amplitude": 0.3,
-                "noise_octaves": 2,
-                "turbulence_scale": 0.5,
-                "repulsion_strength": 0.8,
-                "repulsion_radius": 0.15,
-                "speed": 1.0,
-                "damping": 0.99,
-            },
-            "postfx_params": {
-                "bloom_strength": 0.03,
-                "ssao_intensity": 1.5,
-            },
-        },
-    },
-    "Chaotic": {
-        "Storm": {
-            "sim_params": {
-                "noise_frequency": 2.0,
-                "noise_amplitude": 2.5,
-                "noise_octaves": 8,
-                "turbulence_scale": 3.0,
-                "speed": 3.0,
-                "damping": 0.9,
-                "gravity": [0.0, -0.5, 0.0],
-            },
-            "postfx_params": {
-                "bloom_strength": 0.15,
-                "trail_length": 0.9,
-            },
-        },
-    },
-    "Calm": {
-        "Zen Garden": {
-            "sim_params": {
-                "noise_frequency": 0.1,
-                "noise_amplitude": 0.3,
-                "noise_octaves": 2,
-                "turbulence_scale": 0.5,
-                "speed": 0.2,
+                "solver_iterations": 1,
+                "home_strength": 2.0,
+                "noise_amplitude": 3.0,
+                "breathing_rate": 0.15,
+                "noise_frequency": 0.8,
+                "vorticity_epsilon": 0.02,
+                "xsph_c": 0.005,
                 "damping": 0.995,
-                "attraction_strength": 0.3,
+                "breathing_amplitude": 0.2,
             },
-            "postfx_params": {
-                "bloom_strength": 0.02,
-                "dof_aperture": 1.5,
+            "render_params": {
+                "point_size": 1.5,
+                "opacity": 0.6,
             },
+            "postfx_params": {},
+        },
+        "Liquid": {
+            "sim_params": {
+                "solver_iterations": 5,
+                "home_strength": 8.0,
+                "noise_amplitude": 1.5,
+                "breathing_rate": 0.1,
+                "noise_frequency": 0.3,
+                "vorticity_epsilon": 0.05,
+                "xsph_c": 0.03,
+                "damping": 0.98,
+                "breathing_amplitude": 0.1,
+            },
+            "render_params": {
+                "point_size": 2.5,
+                "opacity": 0.85,
+            },
+            "postfx_params": {},
+        },
+        "Breathing": {
+            "sim_params": {
+                "solver_iterations": 2,
+                "home_strength": 6.0,
+                "noise_amplitude": 1.0,
+                "breathing_rate": 0.35,
+                "noise_frequency": 0.5,
+                "vorticity_epsilon": 0.01,
+                "xsph_c": 0.01,
+                "damping": 0.99,
+                "breathing_amplitude": 0.25,
+            },
+            "render_params": {
+                "point_size": 2.0,
+                "opacity": 0.75,
+            },
+            "postfx_params": {},
+        },
+        "Turbulent": {
+            "sim_params": {
+                "solver_iterations": 3,
+                "home_strength": 4.0,
+                "noise_amplitude": 4.5,
+                "breathing_rate": 0.3,
+                "noise_frequency": 1.2,
+                "vorticity_epsilon": 0.08,
+                "xsph_c": 0.005,
+                "damping": 0.985,
+                "breathing_amplitude": 0.15,
+            },
+            "render_params": {
+                "point_size": 1.8,
+                "opacity": 0.7,
+            },
+            "postfx_params": {},
+        },
+        "Dense": {
+            "sim_params": {
+                "solver_iterations": 6,
+                "home_strength": 15.0,
+                "noise_amplitude": 0.5,
+                "breathing_rate": 0.08,
+                "noise_frequency": 0.2,
+                "vorticity_epsilon": 0.01,
+                "xsph_c": 0.04,
+                "damping": 0.975,
+                "breathing_amplitude": 0.05,
+            },
+            "render_params": {
+                "point_size": 3.0,
+                "opacity": 0.95,
+            },
+            "postfx_params": {},
+        },
+        "Calm": {
+            "sim_params": {
+                "solver_iterations": 2,
+                "home_strength": 10.0,
+                "noise_amplitude": 0.8,
+                "breathing_rate": 0.08,
+                "noise_frequency": 0.4,
+                "vorticity_epsilon": 0.005,
+                "xsph_c": 0.02,
+                "damping": 0.992,
+                "breathing_amplitude": 0.1,
+            },
+            "render_params": {
+                "point_size": 2.2,
+                "opacity": 0.8,
+            },
+            "postfx_params": {},
         },
     },
 }
