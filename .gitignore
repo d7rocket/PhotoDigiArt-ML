@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Models (large binary files — see models/README.md for download)
+models/*.onnx
+models/*.bin
+models/*.pt
+
+# Local config (may contain API keys)
+.apollo7/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Planning docs (development only)
+.planning/
