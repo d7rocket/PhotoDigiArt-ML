@@ -3,11 +3,27 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Make It Alive
 status: executing
+stopped_at: "Checkpoint: 06-04 Task 3 visual verification"
+last_updated: "2026-03-16T13:12:40.421Z"
+last_activity: 2026-03-16 -- Preset grid with gradient thumbnail cards (06-03)
+progress:
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 13
+  completed_plans: 13
+  percent: 100
+---
+
+---
+gsd_state_version: 1.0
+milestone: v2.0
+milestone_name: Make It Alive
+status: executing
 stopped_at: Completed 06-03-PLAN.md
 last_updated: "2026-03-16T13:09:00Z"
 last_activity: 2026-03-16 -- Preset grid with gradient thumbnail cards (06-03)
 progress:
-  total_phases: 3
+  [██████████] 100%
   completed_phases: 2
   total_plans: 13
   completed_plans: 12
@@ -53,6 +69,7 @@ Progress: [█████████░] 92% (v2.0)
 | 06    | 01   | 5min     | 2     | 6     |
 | 06    | 02   | 3min     | 2     | 4     |
 | 06    | 03   | 3min     | 2     | 3     |
+| Phase 06 P04 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -103,6 +120,8 @@ Recent decisions affecting current work:
 - [06-03]: PresetCard generates gradient icon via HSV mapping of solver_iterations, noise_amplitude, home_strength
 - [06-03]: crossfade_changed signal kept as Signal(dict) matching existing main_window wiring
 - [06-03]: Built-in category added to DEFAULT_CATEGORIES list ahead of legacy categories
+- [Phase 06]: Claude Apply uses viewport.apply_crossfaded_preset for smooth CrossfadeEngine transitions
+- [Phase 06]: Compound undo macro wraps all Claude params for single Ctrl+Z revert
 
 ### Pending Todos
 
@@ -117,6 +136,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-16T13:09:00Z
-Stopped at: Completed 06-03-PLAN.md
-Resume file: .planning/phases/06-interface-and-intelligence/06-04-PLAN.md
+Last session: 2026-03-16T13:12:40.419Z
+Stopped at: Checkpoint: 06-04 Task 3 visual verification
+Resume file: None

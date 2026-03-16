@@ -46,7 +46,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 4: Stable Physics** - PBF solver, home positions, force balance, and organic motion forces (completed 2026-03-15)
 - [x] **Phase 5: Visual Quality** - Gallery-quality rendering, GPU performance, smooth transitions, and depth map fixes (completed 2026-03-15)
-- [ ] **Phase 6: Interface and Intelligence** - Polished UI rework and Claude-driven creative direction
+- [x] **Phase 6: Interface and Intelligence** - Polished UI rework and Claude-driven creative direction (completed 2026-03-16)
 
 ## Phase Details
 
@@ -97,7 +97,7 @@ Plans:
   3. User can click a button to have Claude analyze the loaded photo(s) and receive a suggested parameter set with artistic rationale
   4. Claude-suggested parameters apply via smooth crossfade into the viewport, and user can iterate with "more/less like this" refinement
   5. All Claude features work asynchronously -- the viewport never freezes during API calls, and core functionality works fully offline
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 Plans:
 - [ ] 06-01-PLAN.md -- qt-material theming, tabbed layout restructure, and toolbar strip
@@ -117,4 +117,4 @@ Phases execute in numeric order: 4 -> 5 -> 6
 | 3. Discovery and Intelligence | v1.0 | 7/7 | Complete | 2026-03-15 |
 | 4. Stable Physics | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
 | 5. Visual Quality | v2.0 | Complete    | 2026-03-15 | 2026-03-15 |
-| 6. Interface and Intelligence | 3/4 | In Progress|  | - |
+| 6. Interface and Intelligence | 4/4 | Complete   | 2026-03-16 | - |

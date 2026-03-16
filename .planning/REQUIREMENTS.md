@@ -75,8 +75,8 @@ Requirements for v2.0 "Make It Alive". Each maps to roadmap phases.
 
 - [x] **CLAU-01**: Claude analyzes loaded photo(s) and suggests parameter sets for organic sculptures
 - [x] **CLAU-02**: Structured outputs via Pydantic ensure Claude returns valid, bounded parameters
-- [ ] **CLAU-03**: Suggested parameters crossfade into viewport smoothly on apply
-- [ ] **CLAU-04**: Iterative "more/less like this" refinement loop with Claude
+- [x] **CLAU-03**: Suggested parameters crossfade into viewport smoothly on apply
+- [x] **CLAU-04**: Iterative "more/less like this" refinement loop with Claude
 
 ### Depth & Extraction
 
@@ -142,8 +142,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-04 | Phase 6 | Complete |
 | CLAU-01 | Phase 6 | Complete |
 | CLAU-02 | Phase 6 | Complete |
-| CLAU-03 | Phase 6 | Pending |
-| CLAU-04 | Phase 6 | Pending |
+| CLAU-03 | Phase 6 | Complete |
+| CLAU-04 | Phase 6 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 25 total
