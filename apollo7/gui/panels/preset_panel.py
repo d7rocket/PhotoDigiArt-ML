@@ -1,7 +1,8 @@
-"""Preset browser panel for saving, loading, and managing presets.
+"""Preset browser panel with visual 2-column grid of gradient thumbnail cards.
 
-Provides a category-filtered preset list with apply, save, and
-delete functionality.
+Displays built-in and user-saved presets as PresetCard widgets in a grid
+layout. Clicking a card applies its parameters via the preset_applied signal.
+Includes an A/B crossfade widget in a collapsible section.
 """
 
 from __future__ import annotations
@@ -10,15 +11,19 @@ import logging
 
 from PySide6 import QtCore, QtWidgets
 
-from apollo7.project.presets import PresetManager
 from apollo7.gui.widgets.crossfade import CrossfadeWidget
-from apollo7.gui.widgets.section import Section as _Section
+from apollo7.gui.widgets.preset_card import PresetCard
+from apollo7.gui.widgets.section import Section
+from apollo7.project.presets import PresetManager
 
 logger = logging.getLogger(__name__)
 
+_GRID_COLUMNS = 2
+_GRID_SPACING = 8
+
 
 class PresetPanel(QtWidgets.QWidget):
-    """Panel for browsing and managing parameter presets."""
+    """Panel displaying presets as a 2-column grid of gradient thumbnail cards."""
 
     # Emitted when user applies a preset: (sim_params_dict, postfx_params_dict)
     preset_applied = QtCore.Signal(dict, dict)
@@ -31,8 +36,14 @@ class PresetPanel(QtWidgets.QWidget):
         super().__init__(parent)
         self.setObjectName("preset-panel")
         self._manager = PresetManager()
+        self._cards: list[PresetCard] = []
+        self._selected_card: PresetCard | None = None
         self._setup_ui()
-        self._refresh()
+        self._populate_grid()
+
+    # ------------------------------------------------------------------
+    # UI setup
+    # ------------------------------------------------------------------
 
     def _setup_ui(self) -> None:
         layout = QtWidgets.QVBoxLayout(self)
@@ -44,41 +55,26 @@ class PresetPanel(QtWidgets.QWidget):
         title.setObjectName("panel-title")
         layout.addWidget(title)
 
-        # Category dropdown
-        cat_row = QtWidgets.QHBoxLayout()
-        cat_row.addWidget(QtWidgets.QLabel("Category:"))
-        self._category_combo = QtWidgets.QComboBox()
-        self._category_combo.currentTextChanged.connect(self._on_category_changed)
-        cat_row.addWidget(self._category_combo, 1)
-        layout.addLayout(cat_row)
+        # Scrollable grid area
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
 
-        # Preset list
-        self._preset_list = QtWidgets.QListWidget()
-        self._preset_list.currentItemChanged.connect(self._on_preset_selected)
-        layout.addWidget(self._preset_list)
+        self._grid_container = QtWidgets.QWidget()
+        self._grid_layout = QtWidgets.QGridLayout(self._grid_container)
+        self._grid_layout.setContentsMargins(0, 0, 0, 0)
+        self._grid_layout.setSpacing(_GRID_SPACING)
+        scroll.setWidget(self._grid_container)
+        layout.addWidget(scroll, 1)
 
-        # Action buttons
-        btn_row = QtWidgets.QHBoxLayout()
-        btn_row.setSpacing(4)
-
-        self._btn_apply = QtWidgets.QPushButton("Apply")
-        self._btn_apply.setEnabled(False)
-        self._btn_apply.clicked.connect(self._on_apply)
-        btn_row.addWidget(self._btn_apply)
-
-        self._btn_save = QtWidgets.QPushButton("Save Current")
-        self._btn_save.clicked.connect(self._on_save_current)
-        btn_row.addWidget(self._btn_save)
-
-        self._btn_delete = QtWidgets.QPushButton("Delete")
-        self._btn_delete.setEnabled(False)
-        self._btn_delete.clicked.connect(self._on_delete)
-        btn_row.addWidget(self._btn_delete)
-
-        layout.addLayout(btn_row)
+        # Save button
+        btn_save = QtWidgets.QPushButton("Save Current")
+        btn_save.clicked.connect(self._on_save_current)
+        layout.addWidget(btn_save)
 
         # Crossfade section
-        crossfade_section = _Section("Crossfade")
+        crossfade_section = Section("Crossfade")
         self._crossfade_widget = CrossfadeWidget(
             preset_manager=self._manager, parent=self
         )
@@ -86,81 +82,113 @@ class PresetPanel(QtWidgets.QWidget):
         crossfade_section.content_layout.addWidget(self._crossfade_widget)
         layout.addWidget(crossfade_section)
 
-        # Push everything up
-        layout.addStretch()
+    # ------------------------------------------------------------------
+    # Grid population
+    # ------------------------------------------------------------------
+
+    def _populate_grid(self) -> None:
+        """Fill grid with PresetCard widgets from PresetManager."""
+        self._clear_grid()
+
+        listing = self._manager.list_presets()
+        index = 0
+        for category in sorted(listing.keys()):
+            names = listing[category]
+            for name in names:
+                try:
+                    data = self._manager.load_preset(name, category)
+                except Exception:
+                    continue
+
+                card = PresetCard(name, data, parent=self._grid_container)
+                card.setProperty("category", category)
+                card.clicked.connect(self._on_preset_clicked)
+                self._grid_layout.addWidget(
+                    card, index // _GRID_COLUMNS, index % _GRID_COLUMNS
+                )
+                self._cards.append(card)
+                index += 1
+
+        # Add stretch at bottom of grid so cards stay top-aligned
+        spacer = QtWidgets.QSpacerItem(
+            0, 0, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
+        )
+        self._grid_layout.addItem(
+            spacer, (index // _GRID_COLUMNS) + 1, 0, 1, _GRID_COLUMNS
+        )
+
+    def _clear_grid(self) -> None:
+        """Remove all cards from the grid layout."""
+        for card in self._cards:
+            self._grid_layout.removeWidget(card)
+            card.deleteLater()
+        self._cards.clear()
+        self._selected_card = None
+        # Remove spacer items
+        while self._grid_layout.count():
+            item = self._grid_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def refresh_grid(self) -> None:
+        """Rebuild grid from PresetManager (call after save/delete)."""
+        self._populate_grid()
+        # Also refresh crossfade combo boxes
+        if hasattr(self, "_crossfade_widget"):
+            self._crossfade_widget.refresh_presets()
+
+    # ------------------------------------------------------------------
+    # Card interaction
+    # ------------------------------------------------------------------
+
+    def _on_preset_clicked(self, name: str) -> None:
+        """Handle preset card click: select card and emit preset_applied."""
+        # Find the card that was clicked
+        card: PresetCard | None = None
+        for c in self._cards:
+            if c.preset_name == name:
+                card = c
+                break
+
+        if card is None:
+            return
+
+        # Deselect previous
+        if self._selected_card is not None:
+            self._selected_card.set_selected(False)
+
+        # Select new
+        card.set_selected(True)
+        self._selected_card = card
+
+        # Load and emit preset data
+        category = card.property("category")
+        try:
+            data = self._manager.load_preset(name, category)
+            sim_params = data.get("sim_params", {})
+            postfx_params = data.get("postfx_params", {})
+            self.preset_applied.emit(sim_params, postfx_params)
+            logger.info("Applied preset: %s/%s", category, name)
+        except Exception as exc:
+            logger.error("Failed to apply preset: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Crossfade forwarding
+    # ------------------------------------------------------------------
 
     def _on_crossfade_changed(self, lerped_preset: dict) -> None:
-        """Forward crossfade result through panel signal."""
+        """Forward crossfade result through panel signals."""
         sim_params = lerped_preset.get("sim_params", {})
         postfx_params = lerped_preset.get("postfx_params", {})
         self.preset_applied.emit(sim_params, postfx_params)
         self.crossfade_changed.emit(lerped_preset)
 
-    def _refresh(self) -> None:
-        """Refresh category list and preset list from disk."""
-        current_cat = self._category_combo.currentText()
-        self._category_combo.blockSignals(True)
-        self._category_combo.clear()
-        categories = self._manager.get_categories()
-        for cat in categories:
-            self._category_combo.addItem(cat)
-        # Restore selection if possible
-        idx = self._category_combo.findText(current_cat)
-        if idx >= 0:
-            self._category_combo.setCurrentIndex(idx)
-        self._category_combo.blockSignals(False)
-        self._on_category_changed(self._category_combo.currentText())
-        # Also refresh crossfade combo boxes
-        if hasattr(self, "_crossfade_widget"):
-            self._crossfade_widget.refresh_presets()
-
-    def _on_category_changed(self, category: str) -> None:
-        """Filter preset list by selected category."""
-        self._preset_list.clear()
-        if not category:
-            return
-        listing = self._manager.list_presets()
-        presets = listing.get(category, [])
-        for name in presets:
-            # Add tooltip with key param values
-            item = QtWidgets.QListWidgetItem(name)
-            try:
-                data = self._manager.load_preset(name, category)
-                sp = data.get("sim_params", {})
-                summary_parts = []
-                for key in ["speed", "noise_frequency", "noise_amplitude"]:
-                    if key in sp:
-                        short = key.replace("noise_", "n_").replace("frequency", "freq").replace("amplitude", "amp")
-                        summary_parts.append(f"{short}={sp[key]}")
-                if summary_parts:
-                    item.setToolTip(", ".join(summary_parts))
-            except Exception:
-                pass
-            self._preset_list.addItem(item)
-
-    def _on_preset_selected(self, current, previous) -> None:
-        """Enable/disable buttons based on selection."""
-        has_selection = current is not None
-        self._btn_apply.setEnabled(has_selection)
-        self._btn_delete.setEnabled(has_selection)
-
-    def _on_apply(self) -> None:
-        """Load and apply the selected preset."""
-        item = self._preset_list.currentItem()
-        category = self._category_combo.currentText()
-        if item is None or not category:
-            return
-        try:
-            data = self._manager.load_preset(item.text(), category)
-            sim_params = data.get("sim_params", {})
-            postfx_params = data.get("postfx_params", {})
-            self.preset_applied.emit(sim_params, postfx_params)
-            logger.info("Applied preset: %s/%s", category, item.text())
-        except Exception as exc:
-            logger.error("Failed to apply preset: %s", exc)
+    # ------------------------------------------------------------------
+    # Save / dialog
+    # ------------------------------------------------------------------
 
     def _on_save_current(self) -> None:
-        """Prompt user for name/category and save current parameters."""
+        """Request save of current parameters."""
         self.save_current_requested.emit()
 
     def save_preset_dialog(
@@ -185,22 +213,7 @@ class PresetPanel(QtWidgets.QWidget):
         if not ok or not category.strip():
             return
 
-        self._manager.save_preset(name.strip(), category.strip(), sim_params, postfx_params)
-        self._refresh()
-
-    def _on_delete(self) -> None:
-        """Delete selected preset with confirmation."""
-        item = self._preset_list.currentItem()
-        category = self._category_combo.currentText()
-        if item is None or not category:
-            return
-
-        reply = QtWidgets.QMessageBox.question(
-            self,
-            "Delete Preset",
-            f"Delete preset '{item.text()}' from '{category}'?",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        self._manager.save_preset(
+            name.strip(), category.strip(), sim_params, postfx_params
         )
-        if reply == QtWidgets.QMessageBox.Yes:
-            self._manager.delete_preset(item.text(), category)
-            self._refresh()
+        self.refresh_grid()
